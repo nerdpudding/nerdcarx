@@ -1,6 +1,6 @@
 # Fase 1: Desktop Audio Pipeline
 
-**Status:** Gepland
+**Status:** In Voorbereiding
 **Doel:** Werkende spraak-naar-spraak loop, volledig in Docker op desktop
 
 ## Overzicht
@@ -11,93 +11,133 @@
 
 Deze fase bouwt de complete audio pipeline als Docker services op de desktop, zonder enige hardware afhankelijkheid.
 
-## Taken
+---
 
-### Setup
-- [ ] Docker Compose configuratie opzetten
-- [ ] Netwerk en volumes configureren
-- [ ] Development environment documenteren
+## Subfases
 
-### STT Service
-- [ ] Container voor STT opzetten
-- [ ] Keuze maken: Voxtral Mini vs faster-whisper
-- [ ] API endpoint implementeren
-- [ ] Testen met audio samples
+Fase 1 is opgebroken in losse onderdelen die elk apart ontwikkeld en getest kunnen worden.
 
-### LLM Service
-- [ ] Ollama container opzetten
-- [ ] Ministral 8B/14B model downloaden
-- [ ] System prompt configureren
-- [ ] API endpoint testen
+| Sub | Onderdeel | Status | Beschrijving |
+|-----|-----------|--------|--------------|
+| 1a | [STT (Voxtral)](./1a-stt-voxtral/) | Actief | Model kiezen, vLLM opzetten, Docker, benchmarks |
+| 1b | LLM (Ministral) | Klaar | Al werkend via Ollama - later system prompt |
+| 1c | TTS | Gepland | Onderzoek opties, testen Nederlands, Pi-geschiktheid |
+| 1d | Orchestrator | Gepland | FastAPI, STT→LLM→TTS flow, conversation state |
+| 1e | GPU Allocatie | Gepland | Na benchmarks bepalen |
+| 1f | Integratie | Gepland | Alles aan elkaar, end-to-end test |
 
-### TTS Service
-- [ ] Container voor TTS opzetten
-- [ ] Experimenteren met opties (Coqui XTTS, Bark, Piper)
-- [ ] Nederlandse stem selecteren/configureren
-- [ ] API endpoint implementeren
+---
 
-### Orchestrator
-- [ ] FastAPI project opzetten
-- [ ] Request/Response modellen definiëren
-- [ ] STT → LLM → TTS flow implementeren
-- [ ] Conversation history bijhouden
-- [ ] Error handling
+## Subfase Details
 
-### Testen
-- [ ] CLI interface voor handmatig testen
-- [ ] End-to-end test: spraak in → spraak uit
-- [ ] Latency meten en documenteren
+### 1a. STT - Voxtral
 
-## Architectuur
+**Doel:** Voxtral werkend krijgen in Docker, performance en VRAM benchmarken
 
-```yaml
-# docker-compose.yml structure
-services:
-  orchestrator:
-    build: ./services/orchestrator
-    ports: ["8000:8000"]
-    depends_on: [stt, llm, tts]
+**Locatie:** `1a-stt-voxtral/`
 
-  stt:
-    # Voxtral of faster-whisper
-    # GPU: RTX 4090
+**Kernvragen:**
+- Welk Voxtral model? (Mini 3B vs Medium)
+- vLLM als backend - hoe configureren?
+- Hoeveel VRAM nodig?
+- Welke latency haalbaar?
+- Function calling vanuit STT nuttig?
 
-  llm:
-    image: ollama/ollama
-    # Ministral 8B/14B
-    # GPU: RTX 4090
+---
 
-  tts:
-    # Coqui XTTS, Bark, of Piper
-    # GPU of CPU afhankelijk van keuze
+### 1b. LLM - Ministral
+
+**Status:** Al werkend via Ollama
+
+**Later te doen:**
+- Custom modelfile met robot system prompt
+- Function calling schema toevoegen
+- Tools definieren (show_emotion, move_robot, etc.)
+
+---
+
+### 1c. TTS - Onderzoek
+
+**Doel:** Beste TTS vinden voor Nederlands met lage latency
+
+**Criteria:**
+- Goede Nederlandse uitspraak
+- Lage latency
+- Potentieel op Pi draaibaar (nice to have)
+- Offline capable
+
+**Te onderzoeken opties:**
+- Desktop: Coqui XTTS, Bark, Edge TTS, en andere
+- Lightweight: Piper, espeak-ng, en andere
+- Nieuwere opties die mogelijk beter zijn
+
+**Let op:** Piper is NIET automatisch de keuze - "kan houterig klinken"
+
+---
+
+### 1d. Orchestrator
+
+**Doel:** FastAPI service die alles aan elkaar knoopt
+
+**Componenten:**
+- `/process` endpoint (audio in → response uit)
+- STT service client
+- LLM service client
+- TTS service client (optioneel in fase 1)
+- Conversation history management
+- Error handling
+
+**Architectuur:** Pure FastAPI, geen LangChain/LangGraph (voor nu)
+
+---
+
+### 1e. GPU Allocatie
+
+**Beschikbaar:**
+- RTX 4090 (24GB VRAM) - primair
+- RTX 5070 Ti (~12GB effectief) - overflow
+
+**Te bepalen na benchmarks:**
+- Kan alles op 4090?
+- Welke service naar 5070 Ti indien nodig?
+- Concurrent gebruik mogelijk?
+
+---
+
+### 1f. Integratie
+
+**Doel:** Alles werkend als geheel
+
+**Test criteria:**
+- End-to-end: spraak in → spraak uit
+- Latency < 2 seconden
+- Conversation history werkt
+- Elke service apart testbaar
+
+---
+
+## Mapstructuur
+
+```
+1.fase1-desktop-audio/
+├── FASE1-PLAN.md              # Dit bestand
+├── 1a-stt-voxtral/            # Subfase 1a
+│   ├── PLAN.md                # Onderzoek en implementatieplan
+│   ├── research/              # Onderzoeksnotities
+│   └── docker/                # Docker configuratie (later)
+├── 1c-tts/                    # Subfase 1c (later)
+├── 1d-orchestrator/           # Subfase 1d (later)
+└── docker-compose.yml         # Gezamenlijke compose (later)
 ```
 
-## Success Criteria
-
-| Criterium | Target |
-|-----------|--------|
-| End-to-end werkt | Spraak → antwoord |
-| Latency | < 2 seconden |
-| Conversation history | Meerdere beurten |
-| Services testbaar | Elke API apart |
-| Nederlandse TTS | Verstaanbaar |
-
-## Open Vragen
-
-1. **STT keuze:** Voxtral Mini (function calling) vs faster-whisper (lichter)?
-2. **TTS keuze:** Welke klinkt het beste in Nederlands?
-3. **GPU allocatie:** Alles op 4090 of verdelen over GPUs?
+---
 
 ## Voortgang
 
 | Datum | Update |
 |-------|--------|
-| - | Fase nog niet gestart |
-
-## Notities
-
-*Voeg hier notities, learnings en beslissingen toe tijdens de implementatie*
+| 2026-01-10 | Fase 1 opgebroken in subfases, start met 1a |
 
 ---
 
-[← Terug naar README](../README.md) | [Volgende: Fase 2 →](../2.fase2-function-calling/FASE2-PLAN.md)
+[← Terug naar README](../README.md)
