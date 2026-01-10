@@ -54,6 +54,7 @@ htmlcov/
 
 # Models (te groot voor git)
 models/
+!models/README.md
 *.gguf
 *.bin
 *.safetensors
@@ -66,6 +67,9 @@ models/
 *.mp3
 *.ogg
 *.flac
+# Maar bewaar test samples
+!**/test-audio/*.wav
+!**/test-audio/*.mp3
 
 # Images (behalve assets)
 *.jpg

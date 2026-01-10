@@ -1,18 +1,25 @@
-# Voxtral Mini FP8 via vLLM
+# Voxtral Mini STT via vLLM
 #
 # Gebruik:
+#   docker compose build      # Bouw custom image (eerste keer)
 #   docker compose up -d      # Start
 #   docker compose logs -f    # Bekijk logs
 #   docker compose down       # Stop
 #
-# Eerste start: model wordt gedownload (~6.2 GB), duurt even.
+# Model: mistralai/Voxtral-Mini-3B-2507 (origineel, ~9.5GB VRAM)
+# API: OpenAI-compatible op poort 8150
+# Note: Custom Dockerfile installeert audio dependencies (soundfile, ffmpeg)
 
 services:
   voxtral:
-    image: vllm/vllm-openai:latest
+    # Custom image met audio dependencies (soundfile, ffmpeg)
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: nerdcarx/vllm-voxtral:latest
     container_name: nerdcarx-voxtral
 
-    # GPU configuratie
+    # GPU configuratie - GPU0 (RTX 4090)
     deploy:
       resources:
         reservations:
@@ -25,23 +32,24 @@ services:
     ports:
       - "8150:8000"
 
-    # Model cache persistent maken (voorkomt herdownload)
+    # Volumes: HF cache voor model download
     volumes:
       - ~/.cache/huggingface:/root/.cache/huggingface
 
     # IPC voor shared memory (nodig voor grote modellen)
     ipc: host
 
-    # vLLM configuratie
+    # vLLM configuratie - officieel aanbevolen door Mistral
+    # Bron: https://huggingface.co/mistralai/Voxtral-Mini-3B-2507#vllm-recommended
     command: >
-      --model RedHatAI/Voxtral-Mini-3B-2507-FP8-dynamic
+      --model mistralai/Voxtral-Mini-3B-2507
       --tokenizer_mode mistral
       --config_format mistral
       --load_format mistral
       --host 0.0.0.0
       --port 8000
       --max-model-len 4096
-      --gpu-memory-utilization 0.85
+      --gpu-memory-utilization 0.90
 
     # Health check
     healthcheck:
@@ -49,12 +57,16 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
-      start_period: 120s  # Model laden duurt even
+      start_period: 180s  # Model download + laden duurt even
 
     # Restart policy
     restart: unless-stopped
 
 # Notities:
-# - max-model-len 4096: Balans tussen VRAM en context. Verhoog naar 8192 of 16384 als je VRAM hebt.
-# - gpu-memory-utilization 0.85: Laat 15% VRAM over voor andere processen.
-# - Eerste start kan 5-10 minuten duren (model download + laden).
+# - Model wordt automatisch gedownload bij eerste start (~12GB)
+# - VRAM gebruik: ~9.5GB (bf16/fp16)
+# - max-model-len 4096: Balans tussen VRAM en audio context
+# - gpu-memory-utilization 0.90: Laat 10% VRAM over voor overhead
+#
+# TODO: Later onderzoeken of dit op GPU1 (5070 Ti) kan draaien
+# Mogelijke issues: Blackwell compatibiliteit, lagere performance
