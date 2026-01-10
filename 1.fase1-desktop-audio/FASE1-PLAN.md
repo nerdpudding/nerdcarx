@@ -22,7 +22,7 @@ Fase 1 is opgebroken in losse onderdelen die elk apart ontwikkeld en getest kunn
 | 1a | [STT (Voxtral)](./1a-stt-voxtral/) | ✅ **Compleet** | Voxtral Mini + vLLM - transcriptie en chat werkt |
 | 1b | LLM (Ministral) | Klaar | Al werkend via Ollama - later system prompt |
 | 1c | TTS | Gepland | Onderzoek opties, testen Nederlands, Pi-geschiktheid |
-| 1d | Orchestrator | Gepland | FastAPI, STT→LLM→TTS flow, conversation state |
+| 1d | [Orchestrator](./1d-orchestrator/) | **Actief** | FastAPI, STT→LLM flow (tijdelijk in conda, later Docker) |
 | 1e | GPU Allocatie | Gepland | Na benchmarks bepalen |
 | 1f | Integratie | Gepland | Alles aan elkaar, end-to-end test |
 | 1g | [VAD Desktop](./1g-vad-desktop/) | **Nieuw** | Silero VAD voor hands-free testing |
