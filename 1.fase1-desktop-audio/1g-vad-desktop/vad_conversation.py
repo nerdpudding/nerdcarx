@@ -114,8 +114,11 @@ def transcribe_audio(audio_bytes: bytes) -> str:
     return response.json()['text']
 
 
-def chat_via_orchestrator(message: str, conversation_id: str, system_prompt: str = None) -> str:
-    """Stuur bericht naar Orchestrator → Ministral LLM."""
+def chat_via_orchestrator(message: str, conversation_id: str, system_prompt: str = None) -> tuple:
+    """
+    Stuur bericht naar Orchestrator → Ministral LLM.
+    Returns: (response_text, function_calls)
+    """
     payload = {
         "message": message,
         "conversation_id": conversation_id
@@ -130,7 +133,8 @@ def chat_via_orchestrator(message: str, conversation_id: str, system_prompt: str
         timeout=60
     )
     response.raise_for_status()
-    return response.json()['response']
+    result = response.json()
+    return result['response'], result.get('function_calls', [])
 
 
 def check_services() -> dict:
@@ -304,11 +308,25 @@ def main():
 
                 # Get AI response via Orchestrator → Ministral
                 print("🤔 Denken (Ministral)...")
-                ai_response = chat_via_orchestrator(
+                ai_response, function_calls = chat_via_orchestrator(
                     user_text,
                     conversation_id,
                     args.system_prompt if turn_count == 1 else None  # System prompt alleen eerste keer
                 )
+
+                # Toon function calls (emoties)
+                if function_calls:
+                    for fc in function_calls:
+                        if fc.get('name') == 'show_emotion':
+                            emotion = fc.get('arguments', {}).get('emotion', 'neutral')
+                            emotion_emojis = {
+                                "happy": "😊", "sad": "😢", "angry": "😠",
+                                "surprised": "😲", "neutral": "😐", "curious": "🤔",
+                                "confused": "😕", "excited": "🤩", "thinking": "🧠"
+                            }
+                            emoji = emotion_emojis.get(emotion, "🤖")
+                            print(f"🎭 [EMOTIE] {emotion} {emoji}")
+
                 print(f"🤖 NerdCarX: {ai_response}")
 
             except requests.exceptions.ConnectionError as e:
