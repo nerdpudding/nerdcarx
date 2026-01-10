@@ -1,0 +1,116 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.project
+.pydevproject
+.settings/
+
+# Jupyter Notebooks
+.ipynb_checkpoints/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+
+# Docker
+.docker/
+
+# Models (te groot voor git)
+models/
+*.gguf
+*.bin
+*.safetensors
+*.pt
+*.pth
+*.onnx
+
+# Audio files (test recordings etc)
+*.wav
+*.mp3
+*.ogg
+*.flac
+
+# Images (behalve assets)
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.bmp
+!assets/**/*.png
+!assets/**/*.gif
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Secrets & Config
+.env.local
+.env.*.local
+secrets.yaml
+credentials.json
+*.pem
+*.key
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.bak
+
+# Build artifacts
+*.o
+*.a
+*.dylib
+
+# Compressed files (behalve documentatie)
+*.zip
+*.tar.gz
+*.rar
+!original_Picar-X-REFERENCE/**/*.zip
+
+# Node (indien frontend)
+node_modules/
+npm-debug.log
+yarn-error.log
