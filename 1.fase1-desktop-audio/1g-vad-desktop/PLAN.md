@@ -1,6 +1,6 @@
 # Subfase 1g: VAD - Desktop Testing
 
-**Status:** Gepland
+**Status:** ✅ Geïmplementeerd - klaar voor testen
 **Doel:** Voice Activity Detection voor hands-free testing van de audio pipeline op desktop
 
 ---
@@ -57,9 +57,11 @@ Een simpele VAD setup die:
 
 Conda alleen voor Python environment, alle packages via pip.
 
+> **Let op:** Python 3.14 werkt niet (onnxruntime niet beschikbaar), daarom Python 3.12.
+
 ```bash
-# Maak conda environment met Python 3.14 (laatste stable)
-conda create -n nerdcarx-vad python=3.14 -y
+# Maak conda environment met Python 3.12
+conda create -n nerdcarx-vad python=3.12 -y
 conda activate nerdcarx-vad
 
 # Installeer dependencies via pip
@@ -67,43 +69,43 @@ pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu
 pip install silero-vad pyaudio requests
 ```
 
-**Dependencies:**
+**Dependencies (geïnstalleerd):**
 | Package | Versie | Doel |
 |---------|--------|------|
-| torch | latest | Backend voor Silero |
-| torchaudio | latest | Audio processing |
-| silero-vad | latest | Voice Activity Detection |
-| pyaudio | latest | Microfoon input |
-| requests | latest | HTTP naar Voxtral |
+| torch | 2.9.1+cpu | Backend voor Silero |
+| torchaudio | 2.9.1+cpu | Audio processing |
+| silero-vad | 6.2.0 | Voice Activity Detection |
+| pyaudio | 0.2.14 | Microfoon input |
+| requests | 2.32.5 | HTTP naar Voxtral |
 
 ---
 
 ## Implementatieplan
 
-### Stap 1: Environment Setup
+### Stap 1: Environment Setup ✅
 
-- [ ] Conda environment aanmaken (Python 3.14)
-- [ ] Dependencies installeren via pip
+- [x] Conda environment aanmaken (Python 3.12)
+- [x] Dependencies installeren via pip
 - [ ] Microfoon testen
 
-### Stap 2: Basis VAD Script
+### Stap 2: Basis VAD Script ✅
 
-- [ ] Microfoon selectie
-- [ ] Silero VAD laden
-- [ ] Audio stream starten
-- [ ] Spraak detectie implementeren
+- [x] Microfoon selectie
+- [x] Silero VAD laden
+- [x] Audio stream starten
+- [x] Spraak detectie implementeren
 
-### Stap 3: Voxtral Integratie
+### Stap 3: Voxtral Integratie ✅
 
-- [ ] Audio naar Voxtral sturen na detectie
-- [ ] Transcriptie teruggeven
-- [ ] Optioneel: chat mode (antwoord direct)
+- [x] Audio naar Voxtral sturen na detectie
+- [x] Transcriptie teruggeven
+- [x] Chat mode (antwoord direct)
 
-### Stap 4: Polish
+### Stap 4: Polish ✅
 
-- [ ] Silence timeout configureerbaar
-- [ ] Visuele feedback (emoji status)
-- [ ] Error handling
+- [x] Silence timeout configureerbaar (--silence-duration)
+- [x] Visuele feedback (emoji status)
+- [x] Error handling
 
 ---
 
