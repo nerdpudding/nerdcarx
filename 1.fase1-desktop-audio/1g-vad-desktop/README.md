@@ -2,18 +2,32 @@
 
 Hands-free testing van de audio pipeline met Silero VAD.
 
+**Flow:**
+```
+[Mic] → [VAD] → [Voxtral STT] → [Orchestrator] → [Ministral LLM] → response
+```
+
 ## Quick Start
 
 ```bash
 # 1. Activeer environment
 conda activate nerdcarx-vad
 
-# 2. Zorg dat Voxtral draait
+# 2. Zorg dat Voxtral draait (GPU1)
 docker compose -f ../1a-stt-voxtral/docker/docker-compose.yml up -d
 
-# 3. Start VAD listener of conversation
-python vad_listen.py           # Alleen transcriptie
-python vad_conversation.py     # Heen-en-weer gesprek
+# 3. Zorg dat Ollama draait (GPU0)
+docker run -d --gpus device=0 -v ollama:/root/.ollama -p 11434:11434 \
+  --name ollama-nerdcarx -e OLLAMA_KV_CACHE_TYPE=q8_0 ollama/ollama
+
+# 4. Start orchestrator (andere terminal)
+cd ../1d-orchestrator
+uvicorn main:app --port 8200
+
+# 5. Start VAD conversation
+cd ../1g-vad-desktop
+python vad_listen.py           # Alleen transcriptie (direct naar Voxtral)
+python vad_conversation.py     # Volledige chain via Orchestrator
 ```
 
 ## Scripts
@@ -27,9 +41,13 @@ python vad_listen.py           # Transcriptie mode
 python vad_listen.py --chat    # Chat mode (single Q&A)
 ```
 
-### vad_conversation.py - Volledige Conversatie
+### vad_conversation.py - Volledige Conversatie via Orchestrator
 
-Heen-en-weer gesprek met conversation history. AI onthoudt context.
+Heen-en-weer gesprek via de volledige chain:
+- Voxtral STT voor transcriptie
+- Orchestrator voor routing
+- Ministral LLM voor antwoorden
+- Conversation history wordt beheerd door orchestrator
 
 ```bash
 python vad_conversation.py

@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """
-VAD Conversation - Voice Conversation met Voxtral
+VAD Conversation - Voice Conversation via Orchestrator
 Hands-free heen-en-weer gesprek met conversation history.
+
+Flow: [Mic] → [VAD] → [Voxtral STT] → [Orchestrator] → [Ministral LLM] → response
 
 Gebruik:
     conda activate nerdcarx-vad
@@ -12,6 +14,7 @@ Gebruik:
 import argparse
 import io
 import sys
+import uuid
 import wave
 from collections import deque
 from datetime import datetime
@@ -34,16 +37,17 @@ SILENCE_DURATION = 1.5
 MIN_SPEECH_DURATION = 0.3
 PRE_SPEECH_BUFFER = 0.3
 
-# Voxtral endpoint
+# Service endpoints
 VOXTRAL_URL = "http://localhost:8150"
+ORCHESTRATOR_URL = "http://localhost:8200"
 
 # Stop commando (expliciet - moet exact dit zeggen)
 STOP_PHRASE = "stop nu het gesprek"
 
 # Default system prompt
-DEFAULT_SYSTEM_PROMPT = """Je bent een behulpzame en vriendelijke AI assistent.
-Beantwoord vragen kort en duidelijk in het Nederlands.
-Wees conversationeel en natuurlijk."""
+DEFAULT_SYSTEM_PROMPT = """Je bent NerdCarX, een vriendelijke en behulpzame robot assistent.
+Je geeft korte, duidelijke antwoorden in het Nederlands.
+Je bent nieuwsgierig en hebt een licht humoristische persoonlijkheid."""
 
 
 def list_audio_devices():
@@ -96,7 +100,7 @@ def audio_to_wav_bytes(audio_data: np.ndarray, sample_rate: int) -> bytes:
 
 
 def transcribe_audio(audio_bytes: bytes) -> str:
-    """Transcribeer audio via Voxtral."""
+    """Transcribeer audio via Voxtral STT."""
     files = {'file': ('audio.wav', audio_bytes, 'audio/wav')}
     data = {'model': 'mistralai/Voxtral-Mini-3B-2507'}
 
@@ -110,26 +114,44 @@ def transcribe_audio(audio_bytes: bytes) -> str:
     return response.json()['text']
 
 
-def chat_with_history(conversation_history: list, system_prompt: str) -> str:
-    """Stuur conversation history naar Voxtral en krijg antwoord."""
-    messages = [{"role": "system", "content": system_prompt}]
-    messages.extend(conversation_history)
-
+def chat_via_orchestrator(message: str, conversation_id: str, system_prompt: str = None) -> str:
+    """Stuur bericht naar Orchestrator → Ministral LLM."""
     payload = {
-        "model": "mistralai/Voxtral-Mini-3B-2507",
-        "temperature": 0.7,
-        "top_p": 0.95,
-        "max_tokens": 500,
-        "messages": messages
+        "message": message,
+        "conversation_id": conversation_id
     }
 
+    if system_prompt:
+        payload["system_prompt"] = system_prompt
+
     response = requests.post(
-        f"{VOXTRAL_URL}/v1/chat/completions",
+        f"{ORCHESTRATOR_URL}/conversation",
         json=payload,
-        timeout=30
+        timeout=60
     )
     response.raise_for_status()
-    return response.json()['choices'][0]['message']['content']
+    return response.json()['response']
+
+
+def check_services() -> dict:
+    """Check of alle services bereikbaar zijn."""
+    results = {}
+
+    # Check Orchestrator
+    try:
+        resp = requests.get(f"{ORCHESTRATOR_URL}/health", timeout=5)
+        results['orchestrator'] = resp.status_code == 200
+    except:
+        results['orchestrator'] = False
+
+    # Check Voxtral
+    try:
+        resp = requests.get(f"{VOXTRAL_URL}/health", timeout=5)
+        results['voxtral'] = resp.status_code == 200
+    except:
+        results['voxtral'] = False
+
+    return results
 
 
 def is_stop_command(text: str) -> bool:
@@ -180,13 +202,29 @@ def record_speech(stream, vad_model, silence_chunks, min_speech_chunks, pre_buff
 
 
 def main():
-    parser = argparse.ArgumentParser(description='VAD Conversation met Voxtral')
+    parser = argparse.ArgumentParser(description='VAD Conversation via Orchestrator')
     parser.add_argument('--system-prompt', type=str, default=DEFAULT_SYSTEM_PROMPT,
                         help='Custom system prompt voor de AI')
     parser.add_argument('--silence-duration', type=float, default=SILENCE_DURATION,
                         help=f'Stilte duur voor einde detectie (default: {SILENCE_DURATION}s)')
     parser.add_argument('--device', type=int, help='Audio device ID (skip selectie)')
     args = parser.parse_args()
+
+    # Check services
+    print("🔄 Services checken...")
+    services = check_services()
+
+    if not services['orchestrator']:
+        print("❌ Orchestrator niet bereikbaar op", ORCHESTRATOR_URL)
+        print("   Start met: uvicorn main:app --port 8200")
+        sys.exit(1)
+
+    if not services['voxtral']:
+        print("❌ Voxtral niet bereikbaar op", VOXTRAL_URL)
+        print("   Start met: docker compose up -d")
+        sys.exit(1)
+
+    print("✅ Orchestrator en Voxtral bereikbaar")
 
     # Laad VAD model
     print("🔄 VAD model laden...")
@@ -221,10 +259,13 @@ def main():
     pre_buffer = deque(maxlen=pre_buffer_chunks)
 
     # Conversation state
-    conversation_history = []
+    conversation_id = f"vad-{uuid.uuid4().hex[:8]}"
     turn_count = 0
 
     print(f"\n🎙️ VAD Conversation gestart")
+    print("=" * 60)
+    print("Flow: [Mic] → [VAD] → [Voxtral STT] → [Orchestrator] → [Ministral]")
+    print(f"Conversation ID: {conversation_id}")
     print("=" * 60)
     print("Instructies:")
     print("  • Spreek wanneer je klaar bent")
@@ -250,8 +291,8 @@ def main():
             duration = len(audio_data) / SAMPLE_RATE
             wav_bytes = audio_to_wav_bytes(audio_data, SAMPLE_RATE)
 
-            # Transcribe
-            print("📝 Transcriberen...")
+            # Transcribe via Voxtral
+            print("📝 Transcriberen (Voxtral)...")
             try:
                 user_text = transcribe_audio(wav_bytes)
                 print(f"👤 Jij: {user_text}")
@@ -261,27 +302,19 @@ def main():
                     print("\n👋 Stop commando gedetecteerd. Tot ziens!")
                     break
 
-                # Add to history
-                conversation_history.append({
-                    "role": "user",
-                    "content": user_text
-                })
+                # Get AI response via Orchestrator → Ministral
+                print("🤔 Denken (Ministral)...")
+                ai_response = chat_via_orchestrator(
+                    user_text,
+                    conversation_id,
+                    args.system_prompt if turn_count == 1 else None  # System prompt alleen eerste keer
+                )
+                print(f"🤖 NerdCarX: {ai_response}")
 
-                # Get AI response
-                print("🤔 Denken...")
-                ai_response = chat_with_history(conversation_history, args.system_prompt)
-                print(f"🤖 AI: {ai_response}")
-
-                # Add response to history
-                conversation_history.append({
-                    "role": "assistant",
-                    "content": ai_response
-                })
-
-            except requests.exceptions.ConnectionError:
-                print("❌ Kan niet verbinden met Voxtral. Draait de container?")
+            except requests.exceptions.ConnectionError as e:
+                print(f"❌ Verbindingsfout: {e}")
             except requests.exceptions.Timeout:
-                print("❌ Timeout bij Voxtral request")
+                print("❌ Timeout bij request")
             except Exception as e:
                 print(f"❌ Fout: {e}")
 
@@ -292,9 +325,14 @@ def main():
         stream.close()
         p.terminate()
 
+        # Cleanup conversation in orchestrator
+        try:
+            requests.delete(f"{ORCHESTRATOR_URL}/conversation/{conversation_id}", timeout=5)
+        except:
+            pass
+
         # Print summary
-        if conversation_history:
-            print(f"\n📊 Samenvatting: {len(conversation_history) // 2} conversatie turns")
+        print(f"\n📊 Samenvatting: {turn_count} turns")
 
 
 if __name__ == "__main__":
