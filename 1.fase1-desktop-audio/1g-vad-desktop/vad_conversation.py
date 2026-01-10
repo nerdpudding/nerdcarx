@@ -12,12 +12,15 @@ Gebruik:
 """
 
 import argparse
+import base64
 import io
+import os
 import sys
 import uuid
 import wave
 from collections import deque
 from datetime import datetime
+from pathlib import Path
 
 import numpy as np
 import pyaudio
@@ -48,6 +51,17 @@ STOP_PHRASE = "stop nu het gesprek"
 DEFAULT_SYSTEM_PROMPT = """Je bent NerdCarX, een vriendelijke en behulpzame robot assistent.
 Je geeft korte, duidelijke antwoorden in het Nederlands.
 Je bent nieuwsgierig en hebt een licht humoristische persoonlijkheid."""
+
+# Default test image (robot's view)
+DEFAULT_IMAGE_PATH = Path(__file__).parent / "test_foto.jpg"
+
+
+def load_image_base64(image_path: Path) -> str | None:
+    """Laad een image als base64 string."""
+    if not image_path or not image_path.exists():
+        return None
+    with open(image_path, "rb") as f:
+        return base64.b64encode(f.read()).decode("utf-8")
 
 
 def list_audio_devices():
@@ -114,7 +128,7 @@ def transcribe_audio(audio_bytes: bytes) -> str:
     return response.json()['text']
 
 
-def chat_via_orchestrator(message: str, conversation_id: str, system_prompt: str = None) -> tuple:
+def chat_via_orchestrator(message: str, conversation_id: str, system_prompt: str = None, image_base64: str = None) -> tuple:
     """
     Stuur bericht naar Orchestrator → Ministral LLM.
     Returns: (response_text, function_calls)
@@ -126,6 +140,9 @@ def chat_via_orchestrator(message: str, conversation_id: str, system_prompt: str
 
     if system_prompt:
         payload["system_prompt"] = system_prompt
+
+    if image_base64:
+        payload["image_base64"] = image_base64
 
     response = requests.post(
         f"{ORCHESTRATOR_URL}/conversation",
@@ -212,7 +229,21 @@ def main():
     parser.add_argument('--silence-duration', type=float, default=SILENCE_DURATION,
                         help=f'Stilte duur voor einde detectie (default: {SILENCE_DURATION}s)')
     parser.add_argument('--device', type=int, help='Audio device ID (skip selectie)')
+    parser.add_argument('--image', type=str, default=str(DEFAULT_IMAGE_PATH),
+                        help='Pad naar image (robot camera view)')
+    parser.add_argument('--no-image', action='store_true',
+                        help='Geen image meesturen')
     args = parser.parse_args()
+
+    # Laad image (robot's view)
+    image_base64 = None
+    if not args.no_image:
+        image_path = Path(args.image)
+        if image_path.exists():
+            image_base64 = load_image_base64(image_path)
+            print(f"📷 Image geladen: {image_path.name}")
+        else:
+            print(f"⚠️  Image niet gevonden: {image_path}")
 
     # Check services
     print("🔄 Services checken...")
@@ -270,6 +301,7 @@ def main():
     print("=" * 60)
     print("Flow: [Mic] → [VAD] → [Voxtral STT] → [Orchestrator] → [Ministral]")
     print(f"Conversation ID: {conversation_id}")
+    print(f"Vision: {'📷 Enabled' if image_base64 else '❌ Disabled'}")
     print("=" * 60)
     print("Instructies:")
     print("  • Spreek wanneer je klaar bent")
@@ -306,12 +338,13 @@ def main():
                     print("\n👋 Stop commando gedetecteerd. Tot ziens!")
                     break
 
-                # Get AI response via Orchestrator → Ministral
-                print("🤔 Denken (Ministral)...")
+                # Get AI response via Orchestrator → Ministral (met image)
+                print("🤔 Denken (Ministral)..." + (" 📷" if image_base64 else ""))
                 ai_response, function_calls = chat_via_orchestrator(
                     user_text,
                     conversation_id,
-                    args.system_prompt if turn_count == 1 else None  # System prompt alleen eerste keer
+                    args.system_prompt if turn_count == 1 else None,  # System prompt alleen eerste keer
+                    image_base64  # Robot's view
                 )
 
                 # Toon function calls (emoties)

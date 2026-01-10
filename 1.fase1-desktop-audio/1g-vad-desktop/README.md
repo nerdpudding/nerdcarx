@@ -1,10 +1,13 @@
 # VAD Desktop - Voice Activity Detection
 
-Hands-free testing van de audio pipeline met Silero VAD.
+Hands-free gesprekken met de volledige AI pipeline.
 
 **Flow:**
 ```
 [Mic] → [VAD] → [Voxtral STT] → [Orchestrator] → [Ministral LLM] → response
+                                      ↓
+                            + Vision (foto meesturen)
+                            + Function calling (emoties)
 ```
 
 ## Quick Start
@@ -13,94 +16,86 @@ Hands-free testing van de audio pipeline met Silero VAD.
 # 1. Activeer environment
 conda activate nerdcarx-vad
 
-# 2. Zorg dat Voxtral draait (GPU1)
-docker compose -f ../1a-stt-voxtral/docker/docker-compose.yml up -d
+# 2. Zorg dat alle services draaien (zie ../FASE1-PLAN.md)
 
-# 3. Zorg dat Ollama draait (GPU0)
-docker run -d --gpus device=0 -v ollama:/root/.ollama -p 11434:11434 \
-  --name ollama-nerdcarx -e OLLAMA_KV_CACHE_TYPE=q8_0 ollama/ollama
-
-# 4. Start orchestrator (andere terminal)
-cd ../1d-orchestrator
-uvicorn main:app --port 8200
-
-# 5. Start VAD conversation
-cd ../1g-vad-desktop
-python vad_listen.py           # Alleen transcriptie (direct naar Voxtral)
-python vad_conversation.py     # Volledige chain via Orchestrator
+# 3. Start VAD conversation
+python vad_conversation.py
 ```
 
 ## Scripts
 
-### vad_listen.py - Transcriptie / Single Q&A
+### vad_listen.py - Transcriptie only
 
-Spreek, krijg transcriptie of antwoord terug. Geen conversation history.
+Spreek, krijg transcriptie terug. Direct naar Voxtral, geen orchestrator.
 
 ```bash
 python vad_listen.py           # Transcriptie mode
-python vad_listen.py --chat    # Chat mode (single Q&A)
+python vad_listen.py --chat    # Chat mode (Voxtral beantwoordt)
 ```
 
-### vad_conversation.py - Volledige Conversatie via Orchestrator
+### vad_conversation.py - Volledige Pipeline
 
-Heen-en-weer gesprek via de volledige chain:
-- Voxtral STT voor transcriptie
-- Orchestrator voor routing
-- Ministral LLM voor antwoorden
-- Conversation history wordt beheerd door orchestrator
+Gesprek via de complete chain met vision en function calling.
 
 ```bash
 python vad_conversation.py
-python vad_conversation.py --system-prompt "Je bent een grappige robot."
+python vad_conversation.py --image /pad/naar/foto.jpg
+python vad_conversation.py --no-image
 ```
 
-Stop de conversatie met "stop nu het gesprek" of Ctrl+C.
+## Opties
 
-### Opties
-
-```bash
-python vad_listen.py --help
-
-  --chat                 Chat mode: Voxtral beantwoordt vragen
-  --silence-duration     Stilte duur voor einde detectie (default: 1.5s)
-  --device               Audio device ID (skip selectie menu)
 ```
+--system-prompt    Custom system prompt
+--silence-duration Stilte duur voor einde (default: 1.5s)
+--device           Audio device ID
+--image            Pad naar image (default: test_foto.jpg)
+--no-image         Geen vision
+```
+
+## Vision
+
+Standaard wordt `test_foto.jpg` meegestuurd bij elke request.
+Dit simuleert de robot camera.
+
+- Bij vragen als "wat zie je?" beschrijft de LLM de foto
+- Bij andere vragen negeert de LLM de foto (meestal)
+
+## Function Calling
+
+De LLM kan `show_emotion` aanroepen. Dit wordt getoond als:
+```
+🎭 [EMOTIE] happy 😊
+```
+
+Later: dit stuurt naar het OLED display op de robot.
 
 ## Voorbeeld Output
 
 ```
-🔄 VAD model laden...
+📷 Image geladen: test_foto.jpg
+🔄 Services checken...
+✅ Orchestrator en Voxtral bereikbaar
 ✅ VAD model geladen
 
-🎤 Beschikbare Audio Input Devices:
+🎙️ VAD Conversation gestart
 ============================================================
-   4: USB2.0 Device: Audio (hw:1,0) (DEFAULT)
-   11: Razer Seiren Mini: USB Audio (hw:4,0)
-============================================================
-Selecteer device ID (default: 4): 11
-✅ Geselecteerd: Razer Seiren Mini: USB Audio (hw:4,0)
-
-🎙️ VAD Listener gestart (TRANSCRIPTIE mode)
-============================================================
-Instructies:
-  • Spreek wanneer je klaar bent - VAD detecteert automatisch
-  • Stilte van 1.5s beëindigt opname
-  • Ctrl+C om te stoppen
+Flow: [Mic] → [VAD] → [Voxtral STT] → [Orchestrator] → [Ministral]
+Conversation ID: vad-abc12345
+Vision: 📷 Enabled
 ============================================================
 
+[Turn 1]
 🎧 Luisteren... (spreek wanneer klaar)
-🔴 Spraak gedetecteerd - opname gestart
-⏸️ Stilte gedetecteerd - opname gestopt
-📊 Opname: 2.3s
-📤 Verzenden naar Voxtral...
-📝 Transcriptie: Wat is de hoofdstad van Frankrijk?
-
-🎧 Luisteren... (spreek wanneer klaar)
+🔴 Spraak gedetecteerd...
+📝 Transcriberen (Voxtral)...
+👤 Jij: Wat zie je voor je?
+🤔 Denken (Ministral)... 📷
+🎭 [EMOTIE] happy 😊
+🤖 NerdCarX: Ik zie twee golden retriever puppies in een bloemenveld.
 ```
 
 ## Environment Setup
-
-Als je de environment nog niet hebt:
 
 ```bash
 conda create -n nerdcarx-vad python=3.12 -y
@@ -109,23 +104,6 @@ pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu
 pip install silero-vad pyaudio requests
 ```
 
-## Troubleshooting
+## Stop Commando
 
-### Voxtral niet bereikbaar
-
-```
-❌ Kan niet verbinden met Voxtral. Draait de container?
-```
-
-Start de Voxtral container:
-```bash
-cd ../1a-stt-voxtral/docker
-docker compose up -d
-```
-
-### Geen audio devices
-
-Controleer of je microfoon is aangesloten en herkend wordt:
-```bash
-arecord -l
-```
+Zeg "stop nu het gesprek" of druk Ctrl+C.

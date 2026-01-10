@@ -1,155 +1,88 @@
 # Fase 1: Desktop Audio Pipeline
 
-**Status:** In Voorbereiding
-**Doel:** Werkende spraak-naar-spraak loop, volledig in Docker op desktop
+**Status:** Eerste sprint - basis flow werkt
+**Doel:** Werkende spraak-naar-spraak loop op desktop (Docker komt later)
 
-## Overzicht
+## Huidige Stand (2026-01-11)
 
 ```
-[Desktop Mic] → [STT Container] → [LLM Container] → [TTS Container] → [Desktop Speaker]
+[Desktop Mic] → [VAD] → [Voxtral STT] → [Orchestrator] → [Ministral LLM] → response
+                                              ↓
+                                    + Vision (foto meesturen)
+                                    + Function calling (emoties)
 ```
 
-Deze fase bouwt de complete audio pipeline als Docker services op de desktop, zonder enige hardware afhankelijkheid.
+**Wat werkt:**
+- STT via Voxtral (Docker op GPU1)
+- LLM via Ministral 14B (Ollama op GPU0)
+- Orchestrator (lokaal in conda)
+- VAD hands-free gesprekken
+- Vision (foto bij elke request)
+- Function calling (show_emotion tool)
+
+**Wat nog moet:**
+- TTS (volgende stap)
+- Prompt tuning (model gedrag te speels)
+- Dockerizen (later, als base stabiel is)
 
 ---
 
 ## Subfases
 
-Fase 1 is opgebroken in losse onderdelen die elk apart ontwikkeld en getest kunnen worden.
-
 | Sub | Onderdeel | Status | Beschrijving |
 |-----|-----------|--------|--------------|
-| 1a | [STT (Voxtral)](./1a-stt-voxtral/) | ✅ **Compleet** | Voxtral Mini + vLLM - transcriptie en chat werkt |
-| 1b | LLM (Ministral) | Klaar | Al werkend via Ollama - later system prompt |
-| 1c | TTS | Gepland | Onderzoek opties, testen Nederlands, Pi-geschiktheid |
-| 1d | [Orchestrator](./1d-orchestrator/) | **Actief** | FastAPI, STT→LLM flow (tijdelijk in conda, later Docker) |
-| 1e | GPU Allocatie | Gepland | Na benchmarks bepalen |
-| 1f | Integratie | Gepland | Alles aan elkaar, end-to-end test |
-| 1g | [VAD Desktop](./1g-vad-desktop/) | **Nieuw** | Silero VAD voor hands-free testing |
+| 1a | [STT (Voxtral)](./1a-stt-voxtral/) | ✅ Werkt | Docker container op GPU1 |
+| 1b | LLM (Ministral) | ⚠️ Experimenteel | Werkt, maar prompt tuning nodig |
+| 1c | TTS | 🔜 Volgende | Onderzoek opties morgen |
+| 1d | [Orchestrator](./1d-orchestrator/) | ⚠️ Basis werkt | Lokaal in conda, vision + tools |
+| 1e | GPU Allocatie | ✅ Bepaald | GPU0: LLM, GPU1: STT |
+| 1f | Integratie/Docker | Later | Na basis stabiel is |
+| 1g | [VAD Desktop](./1g-vad-desktop/) | ✅ Werkt | Hands-free gesprekken |
 
 ---
 
-## Subfase Details
+## Volgende Stappen
 
-### 1a. STT - Voxtral
+1. **TTS onderzoek** (morgen)
+   - Opties: Coqui XTTS, Piper, Bark, etc.
+   - Criteria: Nederlands, latency, kwaliteit
 
-**Doel:** Voxtral werkend krijgen in Docker, performance en VRAM benchmarken
+2. **Prompt tuning** (doorlopend)
+   - Ministral's "Le Chat" persoonlijkheid temmen
+   - Zakelijker gedrag zonder grappen/emoji's
 
-**Locatie:** `1a-stt-voxtral/`
+3. **Dockerizen** (later)
+   - Orchestrator in container
+   - docker-compose voor hele stack
 
-**Kernvragen:**
-- Welk Voxtral model? (Mini 3B vs Medium)
-- vLLM als backend - hoe configureren?
-- Hoeveel VRAM nodig?
-- Welke latency haalbaar?
-
-> **Opmerking:** Function calling hoort bij de LLM (Ministral), niet bij STT. Zie [D003](../DECISIONS.md#d003-function-calling---ministral-llm-niet-voxtral-stt).
-
----
-
-### 1b. LLM - Ministral
-
-**Status:** Al werkend via Ollama
-
-**Later te doen:**
-- Custom modelfile met robot system prompt
-- Function calling schema toevoegen (zie Fase 2)
-- Tools definieren (show_emotion, move_robot, etc.)
-
-> **Opmerking:** Function calling gebeurt hier, niet bij STT. Ministral 3B/8B ondersteunt
-> dit officieel. Zie [D003](../DECISIONS.md#d003-function-calling---ministral-llm-niet-voxtral-stt).
+4. **Hardware integratie** (na hardware binnenkomt)
+   - Pi 5 verbinding
+   - OLED display
+   - Motors/servo's
 
 ---
 
-### 1c. TTS - Onderzoek
+## Quick Start (huidige setup)
 
-**Doel:** Beste TTS vinden voor Nederlands met lage latency
+```bash
+# Terminal 1: Voxtral STT (GPU1)
+cd 1a-stt-voxtral/docker
+docker compose up -d
 
-**Criteria:**
-- Goede Nederlandse uitspraak
-- Lage latency
-- Potentieel op Pi draaibaar (nice to have)
-- Offline capable
+# Terminal 2: Ollama LLM (GPU0)
+docker run -d --gpus device=0 -v ollama:/root/.ollama -p 11434:11434 \
+  --name ollama-nerdcarx -e OLLAMA_KV_CACHE_TYPE=q8_0 ollama/ollama
+docker exec ollama-nerdcarx ollama pull ministral-3:14b
 
-**Te onderzoeken opties:**
-- Desktop: Coqui XTTS, Bark, Edge TTS, en andere
-- Lightweight: Piper, espeak-ng, en andere
-- Nieuwere opties die mogelijk beter zijn
+# Terminal 3: Orchestrator
+conda activate nerdcarx-vad
+cd 1d-orchestrator
+uvicorn main:app --port 8200 --reload
 
-**Let op:** Piper is NIET automatisch de keuze - "kan houterig klinken"
-
----
-
-### 1d. Orchestrator
-
-**Doel:** FastAPI service die alles aan elkaar knoopt
-
-**Componenten:**
-- `/process` endpoint (audio in → response uit)
-- STT service client
-- LLM service client
-- TTS service client (optioneel in fase 1)
-- Conversation history management
-- Error handling
-
-**Architectuur:** Pure FastAPI, geen LangChain/LangGraph (voor nu)
-
----
-
-### 1e. GPU Allocatie
-
-**Beschikbaar:**
-- RTX 4090 (24GB VRAM) - primair
-- RTX 5070 Ti (~12GB effectief) - overflow
-
-**Te bepalen na benchmarks:**
-- Kan alles op 4090?
-- Welke service naar 5070 Ti indien nodig?
-- Concurrent gebruik mogelijk?
-
----
-
-### 1f. Integratie
-
-**Doel:** Alles werkend als geheel
-
-**Test criteria:**
-- End-to-end: spraak in → spraak uit
-- Latency < 2 seconden
-- Conversation history werkt
-- Elke service apart testbaar
-
----
-
-### 1g. VAD Desktop
-
-**Doel:** Hands-free testing van audio pipeline met Voice Activity Detection
-
-**Locatie:** `1g-vad-desktop/`
-
-**Aanpak:**
-- Silero VAD voor spraak detectie
-- Conda environment met Python 3.14, pip voor packages
-- Simpel script dat luistert, detecteert, en naar Voxtral stuurt
-
-**Let op:** Dit is voor desktop testing. VAD oplossing voor Pi wordt later apart onderzocht.
-
----
-
-## Mapstructuur
-
-```
-1.fase1-desktop-audio/
-├── FASE1-PLAN.md              # Dit bestand
-├── 1a-stt-voxtral/            # ✅ Subfase 1a - Compleet
-│   ├── PLAN.md                # Onderzoek en implementatieplan
-│   ├── docker/                # Docker configuratie
-│   └── test-audio/            # Test scripts en samples
-├── 1g-vad-desktop/            # Subfase 1g - In ontwikkeling
-│   └── PLAN.md                # VAD implementatieplan
-├── 1c-tts/                    # Subfase 1c (later)
-├── 1d-orchestrator/           # Subfase 1d (later)
-└── docker-compose.yml         # Gezamenlijke compose (later)
+# Terminal 4: VAD Conversation
+conda activate nerdcarx-vad
+cd 1g-vad-desktop
+python vad_conversation.py
 ```
 
 ---
@@ -158,11 +91,12 @@ Fase 1 is opgebroken in losse onderdelen die elk apart ontwikkeld en getest kunn
 
 | Datum | Update |
 |-------|--------|
-| 2026-01-10 | Fase 1 opgebroken in subfases, start met 1a |
-| 2026-01-10 | **1a: STT keuze gemaakt** - Voxtral Mini 3B + vLLM |
-| 2026-01-10 | **1a: Docker setup klaar** - Container config in `1a-stt-voxtral/docker/` |
-| 2026-01-10 | **1a: Tests compleet** - Transcriptie en chat werkt |
-| 2026-01-10 | **1g: VAD Desktop** - Plan gemaakt voor hands-free testing met Silero VAD |
+| 2026-01-10 | Fase 1 opgebroken in subfases |
+| 2026-01-10 | 1a: Voxtral STT werkt in Docker |
+| 2026-01-10 | 1g: VAD desktop scripts gemaakt |
+| 2026-01-11 | 1d: Orchestrator met function calling |
+| 2026-01-11 | 1d: Vision support toegevoegd |
+| 2026-01-11 | Volledige chain werkt (STT→LLM→response) |
 
 ---
 

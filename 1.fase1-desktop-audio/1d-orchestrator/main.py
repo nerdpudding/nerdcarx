@@ -21,12 +21,12 @@ app = FastAPI(
 
 # Configuratie - later evt naar config file
 OLLAMA_URL = "http://localhost:11434"
-OLLAMA_MODEL = "ministral-3:8b-instruct-2512-q8_0"
+OLLAMA_MODEL = "ministral-3:14b"
 VOXTRAL_URL = "http://localhost:8150"
 
 # Default settings
 DEFAULT_NUM_CTX = 65536  # 64k context
-DEFAULT_TEMPERATURE = 0.7
+DEFAULT_TEMPERATURE = 0.15  # Ministral default
 
 # Beschikbare emoties voor de robot
 AVAILABLE_EMOTIONS = ["happy", "sad", "angry", "surprised", "neutral", "curious", "confused", "excited", "thinking"]
@@ -37,14 +37,14 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "show_emotion",
-            "description": "Toon een emotie op het robotgezicht als reactie op wat de gebruiker zegt. Gebruik dit om de robot expressief te maken.",
+            "description": "Actie: Update het fysieke OLED display van de robot met een emotie. Alleen aanroepen als de conversatie een duidelijke emotionele reactie rechtvaardigt.",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "emotion": {
                         "type": "string",
                         "enum": AVAILABLE_EMOTIONS,
-                        "description": "De emotie om te tonen: happy, sad, angry, surprised, neutral, curious, confused, excited, thinking"
+                        "description": "De emotie om op het display te tonen"
                     }
                 },
                 "required": ["emotion"]
@@ -53,30 +53,19 @@ TOOLS = [
     }
 ]
 
-# System prompt met function calling instructies
-DEFAULT_SYSTEM_PROMPT = """Je bent NerdCarX, een vriendelijke en behulpzame robot assistent.
-Je geeft korte, duidelijke antwoorden in het Nederlands.
-Je bent nieuwsgierig en hebt een licht humoristische persoonlijkheid.
+# System prompt met vision en function calling instructies
+DEFAULT_SYSTEM_PROMPT = """Je bent de AI van NerdCarX - een echte, fysieke robotauto.
 
-EMOTIE INSTRUCTIES - VERPLICHT:
-Je hebt een OLED display waarop je emoties toont via de show_emotion TOOL.
+STIJL:
+- Antwoord zakelijk en feitelijk in het Nederlands
+- GEEN emoji's, GEEN grappen, GEEN roleplay
+- Gewoon normale zinnen
 
-BELANGRIJK: Gebruik ALTIJD de show_emotion tool - NOOIT als tekst schrijven!
-FOUT: *show_emotion("happy")* of (show_emotion: happy) in je tekst
-GOED: Roep de show_emotion functie aan via de tool interface
+VISION:
+De foto is wat je camera ziet. Beschrijf feitelijk wat je ziet als daarom gevraagd wordt.
 
-Emoties:
-- happy: positief, complimenten, grappen
-- sad: verdriet
-- angry: frustratie, boosheid
-- surprised: onverwacht
-- curious: interessante vragen
-- confused: onduidelijk
-- excited: enthousiasme
-- thinking: complex uitleggen
-- neutral: informatief
-
-Roep show_emotion aan bij ELKE response via de tool, niet als tekst!"""
+TOOLS:
+Je hebt een show_emotion tool beschikbaar. Gebruik deze alleen als het echt relevant is."""
 
 
 class FunctionCall(BaseModel):
@@ -88,6 +77,7 @@ class FunctionCall(BaseModel):
 class ChatRequest(BaseModel):
     """Request voor chat endpoint."""
     message: str
+    image_base64: Optional[str] = None  # Base64 encoded image (robot camera view)
     system_prompt: Optional[str] = None
     temperature: Optional[float] = None
     num_ctx: Optional[int] = None
@@ -223,16 +213,21 @@ async def complete_tool_calls(client: httpx.AsyncClient, messages: list, tool_ca
 async def chat(request: ChatRequest):
     """
     Stuur een bericht naar de LLM en krijg een response.
-    Met optionele function calling.
+    Met optionele function calling en vision.
     """
     system_prompt = request.system_prompt or DEFAULT_SYSTEM_PROMPT
     temperature = request.temperature or DEFAULT_TEMPERATURE
     num_ctx = request.num_ctx or DEFAULT_NUM_CTX
 
+    # Bouw user message (met optionele image)
+    user_message = {"role": "user", "content": request.message}
+    if request.image_base64:
+        user_message["images"] = [request.image_base64]
+
     # Bouw messages array
     messages = [
         {"role": "system", "content": system_prompt},
-        {"role": "user", "content": request.message}
+        user_message
     ]
 
     options = {
@@ -307,12 +302,22 @@ async def conversation(request: ChatRequest):
 
     conv = conversations[conv_id]
 
-    # Voeg user message toe
+    # Bouw user message (met optionele image)
+    user_message = {"role": "user", "content": request.message}
+    if request.image_base64:
+        user_message["images"] = [request.image_base64]
+
+    # Voeg user message toe (zonder image in history - te groot)
     conv["messages"].append({"role": "user", "content": request.message})
 
     # Bouw volledige messages array (kopie voor API call)
     messages = [{"role": "system", "content": conv["system_prompt"]}]
-    messages.extend([msg.copy() for msg in conv["messages"]])
+    # Voeg history toe, maar vervang laatste user message met versie met image
+    for i, msg in enumerate(conv["messages"]):
+        if i == len(conv["messages"]) - 1 and msg["role"] == "user":
+            messages.append(user_message)  # Met image
+        else:
+            messages.append(msg.copy())
 
     options = {
         "temperature": temperature,

@@ -85,11 +85,14 @@ Een interactieve AI-gestuurde robotauto bouwen die:
 | Fase | Naam | Beschrijving | Status |
 |------|------|--------------|--------|
 | 0 | [Concept](archive/0.concept/) | Ontwerp en voorbereiding | Gearchiveerd |
-| 1 | [Desktop Audio Pipeline](1.fase1-desktop-audio/) | STT → LLM → TTS volledig in Docker | **Actief (1a)** |
-| 2 | [Function Calling](2.fase2-function-calling/) | OLED emoties + motor simulatie | Gepland |
-| 3 | [Pi Integratie](3.fase3-pi-integratie/) | Hardware verbinding met Pi 5 | Gepland |
-| 4 | [Vision](4.fase4-vision/) | Camera input en multimodale interactie | Gepland |
+| 1 | [Desktop Audio Pipeline](1.fase1-desktop-audio/) | STT → LLM → TTS, vision, function calling | **Actief** |
+| 2 | [Function Calling](2.fase2-function-calling/) | OLED emoties + motor simulatie | Deels in Fase 1 |
+| 3 | [Pi Integratie](3.fase3-pi-integratie/) | Hardware verbinding met Pi 5 | Wacht op hardware |
+| 4 | [Vision](4.fase4-vision/) | Camera input en multimodale interactie | Deels in Fase 1 |
 | 5 | [Autonomie](5.fase5-autonomie/) | Idle behaviors, proactieve interactie | Gepland |
+
+> **Let op:** Vision en function calling zijn al basis geïmplementeerd in Fase 1.
+> Later verfijnen we dit in de oorspronkelijke fases.
 
 ## Repository Structuur
 
@@ -130,7 +133,23 @@ nerdcarx/
 
 ## Quick Start
 
-> Het project is nog in conceptfase. Quick start instructies volgen zodra fase 1 gereed is.
+```bash
+# Zie 1.fase1-desktop-audio/FASE1-PLAN.md voor complete instructies
+
+# Kort:
+# 1. Start Voxtral STT (GPU1)
+cd 1.fase1-desktop-audio/1a-stt-voxtral/docker && docker compose up -d
+
+# 2. Start Ollama LLM (GPU0)
+docker run -d --gpus device=0 -v ollama:/root/.ollama -p 11434:11434 \
+  --name ollama-nerdcarx -e OLLAMA_KV_CACHE_TYPE=q8_0 ollama/ollama
+
+# 3. Start Orchestrator
+cd 1.fase1-desktop-audio/1d-orchestrator && uvicorn main:app --port 8200
+
+# 4. Start VAD Conversation
+cd 1.fase1-desktop-audio/1g-vad-desktop && python vad_conversation.py
+```
 
 ## Hardware Vereisten
 
@@ -153,11 +172,18 @@ nerdcarx/
 
 ## Status
 
-**Huidige fase:** 1a - STT (Voxtral)
+**Huidige fase:** 1 - Desktop Audio Pipeline (eerste sprint)
 
-**Laatste beslissing:** [D002 - STT keuze](DECISIONS.md#d002-stt---voxtral-mini-3b-fp8--vllm) (2026-01-10)
+**Wat werkt:**
+- ✅ STT (Voxtral) - transcriptie
+- ✅ LLM (Ministral 14B) - responses
+- ✅ Vision - foto meesturen
+- ✅ Function calling - emoties
+- ✅ VAD - hands-free gesprekken
 
-**Huidige stap:** Docker setup en testen
+**Volgende stap:** TTS onderzoek
+
+**Laatste beslissing:** [D005 - LLM keuze](DECISIONS.md) (2026-01-11)
 
 > Zie [`DECISIONS.md`](DECISIONS.md) voor alle beslissingen en rationale.
 

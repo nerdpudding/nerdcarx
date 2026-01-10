@@ -90,16 +90,50 @@ Function calling wordt afgehandeld door de **Ministral LLM** (Fase 2), niet door
 
 ---
 
+### D004: Orchestrator - Pure FastAPI (voorlopig)
+
+**Datum:** 2026-01-11
+**Fase:** 1d
+**Status:** Actief
+
+**Besluit:**
+Orchestrator is pure FastAPI, geen LangChain/LangGraph. Beantwoordt Q004.
+
+**Rationale:** Simpeler, sneller te ontwikkelen, volledige controle.
+
+**Let op:** Dit is een eerste implementatie. Draait lokaal in conda, Docker komt later.
+
+---
+
+### D005: LLM - Ministral 14B (experimenteel)
+
+**Datum:** 2026-01-11
+**Fase:** 1b
+**Status:** Experimenteel
+
+**Besluit:**
+Ministral 14B via Ollama voor LLM + Vision + Function calling.
+
+**Huidige setup:** `ministral-3:14b` op GPU0 (RTX 4090)
+
+**Aandachtspunten:**
+- Model heeft sterke ingebakken persoonlijkheid ("Le Chat")
+- Prompt tuning nodig voor gewenst gedrag
+- Vision werkt, maar output is soms te speels
+- Mogelijk andere model variant of meer prompt werk nodig
+
+---
+
 ## Open vragen
 
 > Vragen die nog beantwoord moeten worden tijdens implementatie.
 
-| ID | Vraag | Verwacht in fase |
-|----|-------|------------------|
-| Q001 | Welke TTS? (Coqui, Piper, Bark, etc.) | 1c |
-| Q002 | TTS op desktop of Pi? | 1c |
-| Q003 | Object detection op Pi? (YOLO) | 4b |
-| Q004 | Orchestrator framework? (Pure FastAPI vs LangChain) | 1d |
+| ID | Vraag | Verwacht in fase | Status |
+|----|-------|------------------|--------|
+| Q001 | Welke TTS? (Coqui, Piper, Bark, etc.) | 1c | Open |
+| Q002 | TTS op desktop of Pi? | 1c | Open |
+| Q003 | Object detection op Pi? (YOLO) | Later | Open |
+| Q004 | Orchestrator framework? | 1d | ✅ Pure FastAPI |
 
 ---
 
@@ -108,9 +142,11 @@ Function calling wordt afgehandeld door de **Ministral LLM** (Fase 2), niet door
 | ID | Onderwerp | Datum | Status |
 |----|-----------|-------|--------|
 | D001 | Project aanpak | 2026-01-10 | Actief |
-| D002 | STT keuze | 2026-01-10 | Actief (bijgewerkt) |
+| D002 | STT keuze | 2026-01-10 | Actief |
 | D003 | Function calling locatie | 2026-01-10 | Actief |
+| D004 | Orchestrator framework | 2026-01-11 | Actief |
+| D005 | LLM keuze | 2026-01-11 | Experimenteel |
 
 ---
 
-*Laatst bijgewerkt: 2026-01-10*
+*Laatst bijgewerkt: 2026-01-11*
