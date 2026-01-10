@@ -1,0 +1,60 @@
+# Voxtral Mini FP8 via vLLM
+#
+# Gebruik:
+#   docker compose up -d      # Start
+#   docker compose logs -f    # Bekijk logs
+#   docker compose down       # Stop
+#
+# Eerste start: model wordt gedownload (~6.2 GB), duurt even.
+
+services:
+  voxtral:
+    image: vllm/vllm-openai:latest
+    container_name: nerdcarx-voxtral
+
+    # GPU configuratie
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+    # Poort: OpenAI-compatible API op 8150
+    ports:
+      - "8150:8000"
+
+    # Model cache persistent maken (voorkomt herdownload)
+    volumes:
+      - ~/.cache/huggingface:/root/.cache/huggingface
+
+    # IPC voor shared memory (nodig voor grote modellen)
+    ipc: host
+
+    # vLLM configuratie
+    command: >
+      --model RedHatAI/Voxtral-Mini-3B-2507-FP8-dynamic
+      --tokenizer_mode mistral
+      --config_format mistral
+      --load_format mistral
+      --host 0.0.0.0
+      --port 8000
+      --max-model-len 4096
+      --gpu-memory-utilization 0.85
+
+    # Health check
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s  # Model laden duurt even
+
+    # Restart policy
+    restart: unless-stopped
+
+# Notities:
+# - max-model-len 4096: Balans tussen VRAM en context. Verhoog naar 8192 of 16384 als je VRAM hebt.
+# - gpu-memory-utilization 0.85: Laat 15% VRAM over voor andere processen.
+# - Eerste start kan 5-10 minuten duren (model download + laden).

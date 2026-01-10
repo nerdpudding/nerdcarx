@@ -1,6 +1,6 @@
 # Subfase 1a: STT - Voxtral
 
-**Status:** Onderzoek
+**Status:** Docker Setup
 **Doel:** Voxtral werkend krijgen in Docker, los van andere services
 
 ---
@@ -46,43 +46,39 @@
 
 ## Implementatiestappen
 
-### Stap 1: Research
+### Stap 1: Research ✅
 
-- [ ] Mistral documentatie lezen over Voxtral
-- [ ] HuggingFace model cards bekijken
-- [ ] vLLM documentatie voor audio modellen
-- [ ] Community examples/tutorials zoeken
-- [ ] VRAM requirements verzamelen
+- [x] Mistral documentatie lezen over Voxtral
+- [x] HuggingFace model cards bekijken
+- [x] vLLM documentatie voor audio modellen
+- [x] VRAM requirements verzamelen
 
 **Output:** Notities in `research/` map
 
-### Stap 2: Basis Opzet
+### Stap 2: Docker Setup (huidige stap)
 
-- [ ] Model downloaden (HuggingFace)
-- [ ] vLLM installatie (lokaal eerst, dan Docker)
-- [ ] Eerste test: audio file → transcriptie
-- [ ] API endpoint werkend
+**Locatie:** [`docker/`](docker/) - bevat alle configuratie en test scripts.
 
-### Stap 3: Docker Container
+- [ ] NVIDIA Container Toolkit controleren
+- [ ] Container starten: `docker compose up -d`
+- [ ] Health check: `curl http://localhost:8000/health`
+- [ ] Test transcriptie met audio sample
 
-- [ ] Dockerfile schrijven
-- [ ] GPU passthrough configureren
-- [ ] Health check endpoint
-- [ ] Volume mounts voor model cache
+**Instructies:** Zie [`docker/README.md`](docker/README.md)
 
-### Stap 4: Benchmarks
+### Stap 3: Testen
 
-- [ ] VRAM meten (idle + inference)
-- [ ] Latency meten met test audio files
-- [ ] Nederlandse audio samples testen
-- [ ] Resultaten documenteren
+- [ ] Test met Engels audio sample (Obama)
+- [ ] Test met Nederlandse audio samples
+- [ ] Test audio Q&A functionaliteit
+- [ ] VRAM meten (`nvidia-smi`)
+- [ ] Latency meten
 
-### Stap 5: API Design
+### Stap 4: Microphone + VAD (later)
 
-- [ ] Input formaat bepalen (audio blob, file, stream?)
-- [ ] Output formaat (tekst, timestamps, confidence?)
-- [ ] Error handling
-- [ ] OpenAI-compatible API? (voor swappability)
+- [ ] Microphone input implementeren
+- [ ] Voice Activity Detection (VAD)
+- [ ] Real-time opname en transcriptie
 
 ---
 
@@ -140,11 +136,13 @@ API:      OpenAI-compatible via vLLM
 
 ### Volgende Stappen
 
-1. [ ] Meer info verzamelen over vLLM + Voxtral setup
-2. [ ] Docker container bouwen
-3. [ ] Lokaal testen met Nederlandse audio samples
-4. [ ] VRAM en latency benchmarken
-5. [ ] API endpoint valideren
+1. [x] Meer info verzamelen over vLLM + Voxtral setup
+2. [x] Docker configuratie gemaakt
+3. [ ] Container draaien en testen
+4. [ ] Lokaal testen met Nederlandse audio samples
+5. [ ] VRAM en latency benchmarken
+
+**Nu te doen:** Ga naar `docker/` en volg de instructies in `README.md`.
 
 ---
 

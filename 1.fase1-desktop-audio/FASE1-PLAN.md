@@ -137,7 +137,8 @@ Fase 1 is opgebroken in losse onderdelen die elk apart ontwikkeld en getest kunn
 | Datum | Update |
 |-------|--------|
 | 2026-01-10 | Fase 1 opgebroken in subfases, start met 1a |
-| 2026-01-10 | **1a: STT keuze gemaakt** - Voxtral Mini 3B FP8 + vLLM. Docker setup volgt. |
+| 2026-01-10 | **1a: STT keuze gemaakt** - Voxtral Mini 3B FP8 + vLLM |
+| 2026-01-10 | **1a: Docker setup klaar** - Container config en test scripts in `1a-stt-voxtral/docker/` |
 
 ---
 
