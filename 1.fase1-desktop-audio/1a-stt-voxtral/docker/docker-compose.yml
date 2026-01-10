@@ -19,13 +19,13 @@ services:
     image: nerdcarx/vllm-voxtral:latest
     container_name: nerdcarx-voxtral
 
-    # GPU configuratie - GPU0 (RTX 4090)
+    # GPU configuratie - GPU1 (RTX 5070 Ti)
     deploy:
       resources:
         reservations:
           devices:
             - driver: nvidia
-              count: 1
+              device_ids: ['1']
               capabilities: [gpu]
 
     # Poort: OpenAI-compatible API op 8150
@@ -49,7 +49,7 @@ services:
       --host 0.0.0.0
       --port 8000
       --max-model-len 4096
-      --gpu-memory-utilization 0.90
+      --gpu-memory-utilization 0.75
 
     # Health check
     healthcheck:

@@ -36,11 +36,11 @@
 
 ### Extra Capabilities
 
-| Vraag | Te Onderzoeken |
-|-------|----------------|
-| Function calling vanuit STT? | Voxtral ondersteunt dit - nuttig? |
-| Sentiment detectie in stem? | Kan het, en willen we het? |
-| Timestamps/word-level? | Voor latere sync met OLED |
+| Vraag | Te Onderzoeken | Status |
+|-------|----------------|--------|
+| Function calling vanuit STT? | Voxtral ondersteunt dit | ✅ Getest en werkt! |
+| Sentiment/emotie detectie in stem? | Audio markups | ❌ Nog niet ondersteund (roadmap) |
+| Timestamps/word-level? | Voor latere sync met OLED | Te testen |
 
 ---
 
@@ -67,13 +67,19 @@
 
 **Instructies:** Zie [`docker/README.md`](docker/README.md)
 
-### Stap 3: Testen ✅ (basis)
+### Stap 3: Testen ✅
 
 - [ ] Test met Engels audio sample
 - [x] Test met Nederlandse audio samples → "Hallo, oude gek" correct getranscribeerd!
-- [ ] Test audio Q&A functionaliteit
+- [x] Test chat/Q&A functionaliteit → Werkt! Voxtral beantwoordt vragen direct
+- [x] Test function calling → Werkt! `show_emotion(happy)` vanuit spraak
 - [x] VRAM gemeten: ~22.7GB (incl. KV cache), model zelf: 8.72GB
 - [x] Latency: ~instant voor 3 sec audio
+
+**Geteste capabilities:**
+- Transcriptie (Nederlands) ✅
+- Voice assistant (vragen beantwoorden) ✅
+- Function calling (robot acties) ✅
 
 ### Stap 4: Microphone + VAD (later)
 
@@ -108,16 +114,19 @@
 - Microfoon: Razer Seiren Mini (USB, mono)
 - Opname: `arecord -D hw:5,0 -d 5 -f S16_LE -r 44100 -c 1 -t wav test.wav`
 
-**Test 1: Nederlandse spraak**
-- Input: "Hallo, oude gek" (3 sec)
-- Output: `{"text":"Hallo, oude gek.","usage":{"type":"duration","seconds":3}}`
-- Latency: ~instant
-- Resultaat: ✅ Perfect
+**Test 1: GPU0 (RTX 4090)**
+- VRAM: 22.7 GB (90% memory utilization)
+- Resultaat: ✅ Werkt
+
+**Test 2: GPU1 (RTX 5070 Ti)**
+- VRAM: 15.2 GB (75% memory utilization)
+- Resultaat: ✅ Werkt - Blackwell compatibel!
 
 **Cruciale configuratie:**
 1. Custom Dockerfile nodig met `vllm[audio]`, `librosa`, `soundfile`
 2. Mistral format flags: `--tokenizer_mode mistral --config_format mistral --load_format mistral`
 3. FP8 quantization werkt NIET met vLLM (zie models/README.md)
+4. GPU1 (5070 Ti): `device_ids: ['1']` + `--gpu-memory-utilization 0.75`
 
 ---
 
@@ -129,7 +138,7 @@
 | Welke quantization? | **Origineel (bf16)** | FP8 werkt niet met vLLM (zie models/README.md) | 2026-01-10 |
 | Welke backend? | **vLLM** | Aanbevolen door Mistral, OpenAI-compatible API, goed voor real-time | 2026-01-10 |
 | Faster-Whisper als fallback? | Nee (voorlopig) | Voxtral voldoet, function calling is meerwaarde | 2026-01-10 |
-| GPU voor STT? | **GPU0 (RTX 4090)** | FP8 werkt niet, dus ~9.5GB nodig. Later uitzoeken of GPU1 (5070 Ti) kan. | 2026-01-10 |
+| GPU voor STT? | **GPU1 (RTX 5070 Ti)** | Getest en werkt! Laat GPU0 (4090) vrij voor LLM. | 2026-01-10 |
 
 ---
 
@@ -138,8 +147,8 @@
 ```
 Model:    mistralai/Voxtral-Mini-3B-2507 (origineel)
 Backend:  vLLM nightly (0.14.0rc1) + custom Dockerfile
-VRAM:     Model: 8.72 GB | KV Cache: 11.15 GB | Totaal: ~22.7 GB
-GPU:      RTX 4090 (GPU0, primair)
+VRAM:     ~15.2 GB (75% memory utilization)
+GPU:      RTX 5070 Ti (GPU1) - laat 4090 vrij voor LLM
 API:      OpenAI-compatible via vLLM
 Poort:    8150 (extern) → 8000 (intern)
 ```
@@ -153,19 +162,22 @@ Poort:    8150 (extern) → 8000 (intern)
 ### Waarom Voxtral Mini?
 
 1. **Nederlands ondersteund** - één van de 8 officiële talen
-2. **Function calling** - sentiment/urgentie detectie direct vanuit STT
+2. **Function calling** - acties triggeren vanuit spraak
 3. **Noise robust** - beter dan Whisper in lawaaierige omgeving (robot motors)
-4. **Audio understanding** - meer dan alleen transcriptie
+4. **Audio understanding** - Q&A, samenvatting, meer dan alleen transcriptie
+
+> **Let op:** Emotie/sentiment detectie vanuit audio is nog NIET ondersteund.
+> Dit staat op de Mistral roadmap als "coming soon".
+> Voor nu: sentiment analyse via LLM op getranscribeerde tekst.
 
 ### VRAM Overwegingen
 
-Met het originele model (~9.5GB) blijft er ~14.5GB over op de RTX 4090 voor de LLM.
-Dit is krap voor Ministral 8B in full precision, maar:
-- Ministral 8B in INT4/GPTQ: ~5-6GB
-- Ministral 8B in FP8: ~8GB
+**Huidige setup:** Voxtral op GPU1 (5070 Ti), GPU0 (4090) volledig vrij voor LLM.
 
-**TODO:** Later onderzoeken of Voxtral naar GPU1 (5070 Ti, ~16GB) kan worden verplaatst.
-Mogelijke issues: Blackwell architectuur compatibiliteit, lagere performance.
+| GPU | Beschikbaar | Gebruik |
+|-----|-------------|---------|
+| RTX 4090 (GPU0) | 24 GB | LLM (Ministral 8B) |
+| RTX 5070 Ti (GPU1) | ~16 GB | Voxtral STT (~15.2 GB) |
 
 ### Volgende Stappen
 
@@ -174,9 +186,9 @@ Mogelijke issues: Blackwell architectuur compatibiliteit, lagere performance.
 3. [x] Container draaien en testen
 4. [x] Lokaal testen met Nederlandse audio samples
 5. [x] VRAM en latency benchmarken
+6. [x] GPU1 (5070 Ti) getest - werkt!
 
 **Volgende fase:**
-- VRAM optimaliseren (`--gpu-memory-utilization`) voor LLM naast STT
 - Microphone streaming + VAD implementeren
 - Integratie met Fase 1b (LLM)
 
