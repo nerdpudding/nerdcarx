@@ -19,7 +19,7 @@ Fase 1 is opgebroken in losse onderdelen die elk apart ontwikkeld en getest kunn
 
 | Sub | Onderdeel | Status | Beschrijving |
 |-----|-----------|--------|--------------|
-| 1a | [STT (Voxtral)](./1a-stt-voxtral/) | ✅ **Compleet** | Voxtral Mini + vLLM - transcriptie, chat, function calling werkt |
+| 1a | [STT (Voxtral)](./1a-stt-voxtral/) | ✅ **Compleet** | Voxtral Mini + vLLM - transcriptie en chat werkt |
 | 1b | LLM (Ministral) | Klaar | Al werkend via Ollama - later system prompt |
 | 1c | TTS | Gepland | Onderzoek opties, testen Nederlands, Pi-geschiktheid |
 | 1d | Orchestrator | Gepland | FastAPI, STT→LLM→TTS flow, conversation state |
@@ -42,7 +42,8 @@ Fase 1 is opgebroken in losse onderdelen die elk apart ontwikkeld en getest kunn
 - vLLM als backend - hoe configureren?
 - Hoeveel VRAM nodig?
 - Welke latency haalbaar?
-- Function calling vanuit STT nuttig?
+
+> **Opmerking:** Function calling hoort bij de LLM (Ministral), niet bij STT. Zie [D003](../DECISIONS.md#d003-function-calling---ministral-llm-niet-voxtral-stt).
 
 ---
 
@@ -52,8 +53,11 @@ Fase 1 is opgebroken in losse onderdelen die elk apart ontwikkeld en getest kunn
 
 **Later te doen:**
 - Custom modelfile met robot system prompt
-- Function calling schema toevoegen
+- Function calling schema toevoegen (zie Fase 2)
 - Tools definieren (show_emotion, move_robot, etc.)
+
+> **Opmerking:** Function calling gebeurt hier, niet bij STT. Ministral 3B/8B ondersteunt
+> dit officieel. Zie [D003](../DECISIONS.md#d003-function-calling---ministral-llm-niet-voxtral-stt).
 
 ---
 
@@ -157,7 +161,7 @@ Fase 1 is opgebroken in losse onderdelen die elk apart ontwikkeld en getest kunn
 | 2026-01-10 | Fase 1 opgebroken in subfases, start met 1a |
 | 2026-01-10 | **1a: STT keuze gemaakt** - Voxtral Mini 3B + vLLM |
 | 2026-01-10 | **1a: Docker setup klaar** - Container config in `1a-stt-voxtral/docker/` |
-| 2026-01-10 | **1a: Tests compleet** - Transcriptie, chat, function calling werkt |
+| 2026-01-10 | **1a: Tests compleet** - Transcriptie en chat werkt |
 | 2026-01-10 | **1g: VAD Desktop** - Plan gemaakt voor hands-free testing met Silero VAD |
 
 ---

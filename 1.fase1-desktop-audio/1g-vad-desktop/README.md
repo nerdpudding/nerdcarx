@@ -11,27 +11,32 @@ conda activate nerdcarx-vad
 # 2. Zorg dat Voxtral draait
 docker compose -f ../1a-stt-voxtral/docker/docker-compose.yml up -d
 
-# 3. Start VAD listener
-python vad_listen.py
+# 3. Start VAD listener of conversation
+python vad_listen.py           # Alleen transcriptie
+python vad_conversation.py     # Heen-en-weer gesprek
 ```
 
-## Gebruik
+## Scripts
 
-### Transcriptie Mode (default)
+### vad_listen.py - Transcriptie / Single Q&A
 
-Spreek, en krijg transcriptie terug.
+Spreek, krijg transcriptie of antwoord terug. Geen conversation history.
 
 ```bash
-python vad_listen.py
+python vad_listen.py           # Transcriptie mode
+python vad_listen.py --chat    # Chat mode (single Q&A)
 ```
 
-### Chat Mode
+### vad_conversation.py - Volledige Conversatie
 
-Spreek een vraag, en krijg antwoord van Voxtral.
+Heen-en-weer gesprek met conversation history. AI onthoudt context.
 
 ```bash
-python vad_listen.py --chat
+python vad_conversation.py
+python vad_conversation.py --system-prompt "Je bent een grappige robot."
 ```
+
+Stop de conversatie met "stop nu het gesprek" of Ctrl+C.
 
 ### Opties
 

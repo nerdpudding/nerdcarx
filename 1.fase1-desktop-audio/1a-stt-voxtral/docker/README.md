@@ -84,18 +84,22 @@ Verwachte output:
 | **Meertalig** | ✅ Werkt | 8 talen incl. Nederlands |
 | **Audio Q&A** | ✅ Werkt | Vragen over audio content |
 | **Samenvatting** | ✅ Werkt | Audio samenvatten |
-| **Function calling** | ✅ Werkt | Acties triggeren vanuit spraak |
 | **Lange audio** | ✅ Werkt | Tot 30 min transcriptie, 40 min understanding |
 
 ### Wat Voxtral NIET kan (nog niet)
 
 | Feature | Status | Notes |
 |---------|--------|-------|
+| **Function calling** | ❌ Niet betrouwbaar | Niet stabiel via vLLM, gebruik Ministral LLM |
 | **Emotie detectie** | ❌ Niet ondersteund | Op roadmap ("coming soon") |
 | **Leeftijd detectie** | ❌ Niet ondersteund | Op roadmap |
 | **Speaker diarization** | ❌ Niet ingebouwd | Aparte tool nodig |
 
 > **Bron:** [Mistral Voxtral Announcement](https://mistral.ai/news/voxtral)
+>
+> **Opmerking function calling:** Hoewel Mistral documentatie function calling noemt voor Voxtral,
+> werkt dit in de praktijk niet betrouwbaar via vLLM. De LLM (Ministral) is beter geschikt voor
+> function calling en krijgt de getranscribeerde tekst als input. Zie Fase 2 voor function calling.
 
 ---
 
@@ -184,10 +188,6 @@ curl -X POST http://localhost:8150/v1/audio/transcriptions \
     -F "model=mistralai/Voxtral-Mini-3B-2507" \
     -F "language=nl"
 ```
-
-### Getest
-
-- [x] Function calling vanuit audio → Werkt! Zie `test-audio/test-function.sh`
 
 ### Nog te testen
 

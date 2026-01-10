@@ -38,9 +38,12 @@
 
 | Vraag | Te Onderzoeken | Status |
 |-------|----------------|--------|
-| Function calling vanuit STT? | Voxtral ondersteunt dit | ✅ Getest en werkt! |
+| Function calling vanuit STT? | Voxtral ondersteunt dit | ❌ Niet betrouwbaar via vLLM |
 | Sentiment/emotie detectie in stem? | Audio markups | ❌ Nog niet ondersteund (roadmap) |
 | Timestamps/word-level? | Voor latere sync met OLED | Te testen |
+
+> **Opmerking function calling:** Initiële tests leken te werken, maar bleken niet betrouwbaar.
+> Function calling hoort bij de LLM (Ministral), niet bij STT. Zie Fase 2.
 
 ---
 
@@ -72,14 +75,14 @@
 - [ ] Test met Engels audio sample
 - [x] Test met Nederlandse audio samples → "Hallo, oude gek" correct getranscribeerd!
 - [x] Test chat/Q&A functionaliteit → Werkt! Voxtral beantwoordt vragen direct
-- [x] Test function calling → Werkt! `show_emotion(happy)` vanuit spraak
 - [x] VRAM gemeten: ~22.7GB (incl. KV cache), model zelf: 8.72GB
 - [x] Latency: ~instant voor 3 sec audio
 
 **Geteste capabilities:**
 - Transcriptie (Nederlands) ✅
 - Voice assistant (vragen beantwoorden) ✅
-- Function calling (robot acties) ✅
+
+> **Function calling:** Initieel getest maar niet betrouwbaar gebleken. Geschrapt voor Voxtral.
 
 ### Stap 4: Microphone + VAD (later)
 
@@ -134,10 +137,10 @@
 
 | Vraag | Besluit | Reden | Datum |
 |-------|---------|-------|-------|
-| Welk STT model? | **Voxtral Mini 3B** | Beste balans kwaliteit/VRAM, Nederlands ondersteund, function calling | 2026-01-10 |
+| Welk STT model? | **Voxtral Mini 3B** | Beste balans kwaliteit/VRAM, Nederlands ondersteund, noise robust | 2026-01-10 |
 | Welke quantization? | **Origineel (bf16)** | FP8 werkt niet met vLLM (zie models/README.md) | 2026-01-10 |
 | Welke backend? | **vLLM** | Aanbevolen door Mistral, OpenAI-compatible API, goed voor real-time | 2026-01-10 |
-| Faster-Whisper als fallback? | Nee (voorlopig) | Voxtral voldoet, function calling is meerwaarde | 2026-01-10 |
+| Faster-Whisper als fallback? | Nee (voorlopig) | Voxtral voldoet, betere accuracy en noise robustness | 2026-01-10 |
 | GPU voor STT? | **GPU1 (RTX 5070 Ti)** | Getest en werkt! Laat GPU0 (4090) vrij voor LLM. | 2026-01-10 |
 
 ---
@@ -162,13 +165,15 @@ Poort:    8150 (extern) → 8000 (intern)
 ### Waarom Voxtral Mini?
 
 1. **Nederlands ondersteund** - één van de 8 officiële talen
-2. **Function calling** - acties triggeren vanuit spraak
-3. **Noise robust** - beter dan Whisper in lawaaierige omgeving (robot motors)
-4. **Audio understanding** - Q&A, samenvatting, meer dan alleen transcriptie
+2. **Noise robust** - beter dan Whisper in lawaaierige omgeving (robot motors)
+3. **Audio understanding** - Q&A, samenvatting, meer dan alleen transcriptie
 
 > **Let op:** Emotie/sentiment detectie vanuit audio is nog NIET ondersteund.
 > Dit staat op de Mistral roadmap als "coming soon".
 > Voor nu: sentiment analyse via LLM op getranscribeerde tekst.
+>
+> **Function calling:** Hoewel Mistral documentatie dit noemt, werkt het in de praktijk
+> niet betrouwbaar via vLLM. Function calling gebeurt in Fase 2 via Ministral LLM.
 
 ### VRAM Overwegingen
 

@@ -63,34 +63,6 @@ Voxtral beantwoordt je vraag direct (volledige LLM).
 #          Nederland is Amsterdam."
 ```
 
-### test-function.sh - Function Calling
-
-Test function calling vanuit spraak (voor robot acties).
-
-```bash
-./record.sh commando.wav
-# Spreek: "Laat me een blij gezichtje zien"
-
-./test-function.sh commando.wav
-# Output: {"emotion": "happy"}
-```
-
-## Voorbeeld: Function Calling Getest en Werkend
-
-```bash
-# 1. Opnemen
-./record.sh commando.wav
-# Ingesproken: "Laat me eens een blij gezichtje zien."
-
-# 2. Transcriptie check
-./test-transcribe.sh commando.wav
-# Output: "Laat me eens een blij gezichtje zien."
-
-# 3. Function call
-./test-function.sh commando.wav
-# Output: [TOOL_CALLS][{"emotion": "happy"}]
-```
-
 ## Microfoon
 
 ```bash
@@ -107,6 +79,5 @@ RECORD_DEVICE=hw:3,0 ./record.sh test.wav
 |--------|-------------|------|
 | test-transcribe.sh | 0.0 | Exacte transcriptie |
 | test-chat.sh | 0.2 | Antwoorden genereren |
-| test-function.sh | 0.2 | Function calling |
 
 Bron: [HuggingFace Model Card](https://huggingface.co/mistralai/Voxtral-Mini-3B-2507)

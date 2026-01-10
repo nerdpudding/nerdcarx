@@ -160,7 +160,7 @@ pip install silero-vad pyaudio requests
 
 ---
 
-## Gebruik (Gepland)
+## Gebruik
 
 ```bash
 # Activeer environment
@@ -172,11 +172,14 @@ python vad_listen.py
 # Chat mode (Voxtral beantwoordt direct)
 python vad_listen.py --chat
 
+# Conversatie met history
+python vad_conversation.py
+
 # Custom silence timeout
 python vad_listen.py --silence-duration 2.0
 ```
 
-**Verwachte output:**
+**Verwachte output (vad_listen.py):**
 ```
 🎤 VAD Listener gestart
 🎧 Luisteren... (spreek wanneer klaar)

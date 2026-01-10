@@ -24,10 +24,14 @@ This comparison helps you choose between two speech recognition approaches: Voxt
 | Transcription | ✅ Yes | ✅ Yes |
 | Q&A from Audio | ✅ Yes | ❌ No |
 | Summarization | ✅ Yes | ❌ No |
-| Function Calling | ✅ Yes | ❌ No |
+| Function Calling | ❌ Not reliable via vLLM | ❌ No |
 | Translation | ✅ Yes (8 langs) | ✅ Yes (50+ langs) |
 | Speaker Diarization | Implicit via context | Requires separate model |
 | Long-form Audio | Up to 40 min native | Unlimited via VAD chunking |
+
+> **Note on Function Calling:** While Mistral documentation mentions function calling support,
+> testing revealed this is not reliable when deployed via vLLM. Function calling should be
+> handled by the main LLM (Ministral) which receives the transcribed text as input.
 
 ## Benchmark Performance
 
@@ -141,10 +145,12 @@ Running both models simultaneously:
 
 - **Direct Q&A**: Ask questions about audio content without separate transcription + LLM pipeline
 - **Contextual Summarization**: Generates summaries that understand speaker intent
-- **Function Calling**: Trigger workflows from voice commands
 - **Noise Robustness**: Better accuracy than Whisper in noisy environments
 
 **Dutch Support**: Voxtral includes Dutch as one of its 8 supported languages with strong performance.
+
+> **Note:** Function calling was originally listed as a strength but was found to be unreliable
+> via vLLM deployment. This capability should be handled by the main LLM instead.
 
 ## Faster-Whisper Strengths
 
@@ -160,13 +166,14 @@ Running both models simultaneously:
 
 ### Choose Voxtral Mini FP8 + vLLM if you:
 
-- Need audio understanding beyond transcription (Q&A, summarization, function calling)
+- Need audio understanding beyond transcription (Q&A, summarization)
 - Work primarily in the 8 supported languages (especially Dutch)
 - Require real-time processing with high throughput
-- Want to consolidate ASR + LLM into a single model
 - Value noise robustness for real-world audio quality
 
 **Implementation**: Deploy via Docker with vLLM, expose REST API.
+
+> **Note:** Function calling should be handled by a separate LLM (like Ministral) rather than Voxtral.
 
 ### Choose Faster-Whisper v3 Large if you:
 
@@ -249,16 +256,18 @@ Voor het NerdCarX project kiezen we **Voxtral Mini 3B** in de **FP8 quantized** 
 ### Rationale
 
 1. **Nederlands** - Voxtral ondersteunt Nederlands als één van 8 talen
-2. **Function calling** - Uniek voor Voxtral, niet beschikbaar in Whisper
-3. **Audio understanding** - Meer dan transcriptie: Q&A, summarization, sentiment
-4. **VRAM efficiënt** - FP8 past ruim naast Ministral LLM op RTX 4090
-5. **Noise robust** - Beter dan Whisper in lawaaierige omgevingen
+2. **Audio understanding** - Meer dan transcriptie: Q&A, summarization
+3. **VRAM efficiënt** - FP8 past ruim naast Ministral LLM op RTX 4090
+4. **Noise robust** - Beter dan Whisper in lawaaierige omgevingen
 
 ### Waarom niet Faster-Whisper?
 
-- Geen function calling (zou extra LLM call vereisen)
 - Minder robuust in lawaaierige omgeving
 - 50+ talen niet nodig, we focussen op Nederlands
+
+> **Update (2026-01-10):** Function calling was oorspronkelijk een argument voor Voxtral,
+> maar bleek niet betrouwbaar te werken via vLLM. Dit is geen probleem omdat function calling
+> beter past bij de LLM (Ministral) die de getranscribeerde tekst ontvangt.
 
 ### Next Steps
 
