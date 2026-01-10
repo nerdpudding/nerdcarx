@@ -19,12 +19,13 @@ Fase 1 is opgebroken in losse onderdelen die elk apart ontwikkeld en getest kunn
 
 | Sub | Onderdeel | Status | Beschrijving |
 |-----|-----------|--------|--------------|
-| 1a | [STT (Voxtral)](./1a-stt-voxtral/) | **Keuze gemaakt** | Voxtral Mini FP8 + vLLM - Docker setup volgt |
+| 1a | [STT (Voxtral)](./1a-stt-voxtral/) | ✅ **Compleet** | Voxtral Mini + vLLM - transcriptie, chat, function calling werkt |
 | 1b | LLM (Ministral) | Klaar | Al werkend via Ollama - later system prompt |
 | 1c | TTS | Gepland | Onderzoek opties, testen Nederlands, Pi-geschiktheid |
 | 1d | Orchestrator | Gepland | FastAPI, STT→LLM→TTS flow, conversation state |
 | 1e | GPU Allocatie | Gepland | Na benchmarks bepalen |
 | 1f | Integratie | Gepland | Alles aan elkaar, end-to-end test |
+| 1g | [VAD Desktop](./1g-vad-desktop/) | **Nieuw** | Silero VAD voor hands-free testing |
 
 ---
 
@@ -116,15 +117,32 @@ Fase 1 is opgebroken in losse onderdelen die elk apart ontwikkeld en getest kunn
 
 ---
 
+### 1g. VAD Desktop
+
+**Doel:** Hands-free testing van audio pipeline met Voice Activity Detection
+
+**Locatie:** `1g-vad-desktop/`
+
+**Aanpak:**
+- Silero VAD voor spraak detectie
+- Conda environment met Python 3.14, pip voor packages
+- Simpel script dat luistert, detecteert, en naar Voxtral stuurt
+
+**Let op:** Dit is voor desktop testing. VAD oplossing voor Pi wordt later apart onderzocht.
+
+---
+
 ## Mapstructuur
 
 ```
 1.fase1-desktop-audio/
 ├── FASE1-PLAN.md              # Dit bestand
-├── 1a-stt-voxtral/            # Subfase 1a
+├── 1a-stt-voxtral/            # ✅ Subfase 1a - Compleet
 │   ├── PLAN.md                # Onderzoek en implementatieplan
-│   ├── research/              # Onderzoeksnotities
-│   └── docker/                # Docker configuratie (later)
+│   ├── docker/                # Docker configuratie
+│   └── test-audio/            # Test scripts en samples
+├── 1g-vad-desktop/            # Subfase 1g - In ontwikkeling
+│   └── PLAN.md                # VAD implementatieplan
 ├── 1c-tts/                    # Subfase 1c (later)
 ├── 1d-orchestrator/           # Subfase 1d (later)
 └── docker-compose.yml         # Gezamenlijke compose (later)
@@ -137,8 +155,10 @@ Fase 1 is opgebroken in losse onderdelen die elk apart ontwikkeld en getest kunn
 | Datum | Update |
 |-------|--------|
 | 2026-01-10 | Fase 1 opgebroken in subfases, start met 1a |
-| 2026-01-10 | **1a: STT keuze gemaakt** - Voxtral Mini 3B FP8 + vLLM |
-| 2026-01-10 | **1a: Docker setup klaar** - Container config en test scripts in `1a-stt-voxtral/docker/` |
+| 2026-01-10 | **1a: STT keuze gemaakt** - Voxtral Mini 3B + vLLM |
+| 2026-01-10 | **1a: Docker setup klaar** - Container config in `1a-stt-voxtral/docker/` |
+| 2026-01-10 | **1a: Tests compleet** - Transcriptie, chat, function calling werkt |
+| 2026-01-10 | **1g: VAD Desktop** - Plan gemaakt voor hands-free testing met Silero VAD |
 
 ---
 
