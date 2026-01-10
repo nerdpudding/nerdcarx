@@ -19,7 +19,7 @@ Fase 1 is opgebroken in losse onderdelen die elk apart ontwikkeld en getest kunn
 
 | Sub | Onderdeel | Status | Beschrijving |
 |-----|-----------|--------|--------------|
-| 1a | [STT (Voxtral)](./1a-stt-voxtral/) | Actief | Model kiezen, vLLM opzetten, Docker, benchmarks |
+| 1a | [STT (Voxtral)](./1a-stt-voxtral/) | **Keuze gemaakt** | Voxtral Mini FP8 + vLLM - Docker setup volgt |
 | 1b | LLM (Ministral) | Klaar | Al werkend via Ollama - later system prompt |
 | 1c | TTS | Gepland | Onderzoek opties, testen Nederlands, Pi-geschiktheid |
 | 1d | Orchestrator | Gepland | FastAPI, STT→LLM→TTS flow, conversation state |
@@ -137,6 +137,7 @@ Fase 1 is opgebroken in losse onderdelen die elk apart ontwikkeld en getest kunn
 | Datum | Update |
 |-------|--------|
 | 2026-01-10 | Fase 1 opgebroken in subfases, start met 1a |
+| 2026-01-10 | **1a: STT keuze gemaakt** - Voxtral Mini 3B FP8 + vLLM. Docker setup volgt. |
 
 ---
 

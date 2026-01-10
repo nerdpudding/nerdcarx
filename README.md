@@ -4,6 +4,7 @@ Een AI-gestuurde robotauto gebaseerd op de PiCar-X, met lokale spraakinteractie,
 
 ## Inhoudsopgave
 
+- [Werkwijze](#werkwijze)
 - [Doelstelling](#doelstelling)
 - [Concept Samenvatting](#concept-samenvatting)
 - [Fasen](#fasen)
@@ -11,6 +12,40 @@ Een AI-gestuurde robotauto gebaseerd op de PiCar-X, met lokale spraakinteractie,
 - [Quick Start](#quick-start)
 - [Hardware Vereisten](#hardware-vereisten)
 - [Status](#status)
+
+---
+
+## Werkwijze
+
+> **Belangrijk:** Dit project hanteert een duidelijke structuur om verwarring te voorkomen.
+
+### Centrale Beslissingen
+
+Alle projectbeslissingen staan op **één plek**: [`DECISIONS.md`](DECISIONS.md)
+
+- Elke keuze krijgt een ID (D001, D002, ...)
+- Bevat rationale en alternatieven
+- Chronologisch, nooit verwijderen
+- **Dit is de bron van waarheid**
+
+### Document Structuur
+
+| Document | Doel | Bijwerken |
+|----------|------|-----------|
+| `DECISIONS.md` | Alle beslissingen | Bij elke keuze |
+| `README.md` | Overzicht + huidige fase | Bij fasewissel |
+| `archive/` | Afgeronde documenten (read-only) | Nooit |
+| `FASE*-PLAN.md` | Checklist per fase | Tijdens die fase |
+| `research/` | Losse notities | Vrij |
+
+### Waarom zo?
+
+- **Eén bron van waarheid** - geen verwarring over wat actueel is
+- **Archief blijft intact** - origineel concept als referentie
+- **Minder bijwerken** - alleen DECISIONS.md + actieve PLAN
+- **Schaalt** - werkt ook als het project groeit
+
+---
 
 ## Doelstelling
 
@@ -49,8 +84,8 @@ Een interactieve AI-gestuurde robotauto bouwen die:
 
 | Fase | Naam | Beschrijving | Status |
 |------|------|--------------|--------|
-| 0 | [Concept](0.nerdcarx-concept/) | Ontwerp en voorbereiding | Actief |
-| 1 | [Desktop Audio Pipeline](1.fase1-desktop-audio/) | STT → LLM → TTS volledig in Docker | Gepland |
+| 0 | [Concept](archive/0.concept/) | Ontwerp en voorbereiding | Gearchiveerd |
+| 1 | [Desktop Audio Pipeline](1.fase1-desktop-audio/) | STT → LLM → TTS volledig in Docker | **Actief (1a)** |
 | 2 | [Function Calling](2.fase2-function-calling/) | OLED emoties + motor simulatie | Gepland |
 | 3 | [Pi Integratie](3.fase3-pi-integratie/) | Hardware verbinding met Pi 5 | Gepland |
 | 4 | [Vision](4.fase4-vision/) | Camera input en multimodale interactie | Gepland |
@@ -61,37 +96,36 @@ Een interactieve AI-gestuurde robotauto bouwen die:
 ```
 nerdcarx/
 ├── README.md                          # Dit bestand
+├── DECISIONS.md                       # ⭐ Centrale beslissingen (bron van waarheid)
 ├── .gitignore                         # Git ignore regels
 │
-├── 0.nerdcarx-concept/                # Concept documentatie
-│   └── picar-x-ai-companion-concept.md
+├── archive/                           # 📁 Afgeronde documenten (read-only)
+│   ├── README.md                      # Uitleg archief
+│   └── 0.concept/                     # Origineel projectconcept
+│       └── picar-x-ai-companion-concept.md
 │
 ├── 1.fase1-desktop-audio/             # Fase 1: Audio pipeline
-│   ├── FASE1-PLAN.md                  # Plan en voortgang
-│   └── services/                      # Docker services (komt later)
+│   ├── FASE1-PLAN.md                  # Checklist en voortgang
+│   └── 1a-stt-voxtral/                # Subfase 1a
+│       ├── PLAN.md                    # Taken voor dit onderdeel
+│       └── research/                  # Onderzoeksnotities
 │
 ├── 2.fase2-function-calling/          # Fase 2: Function calling + emoties
-│   ├── FASE2-PLAN.md                  # Plan en voortgang
-│   └── desktop-mockup/                # Simulators (komt later)
+│   └── FASE2-PLAN.md
 │
 ├── 3.fase3-pi-integratie/             # Fase 3: Pi hardware
-│   ├── FASE3-PLAN.md                  # Plan en voortgang
-│   └── pi-client/                     # Pi applicatie (komt later)
+│   └── FASE3-PLAN.md
 │
 ├── 4.fase4-vision/                    # Fase 4: Camera/Vision
-│   ├── FASE4-PLAN.md                  # Plan en voortgang
-│   └── ...
+│   └── FASE4-PLAN.md
 │
 ├── 5.fase5-autonomie/                 # Fase 5: Autonome gedragingen
-│   ├── FASE5-PLAN.md                  # Plan en voortgang
-│   └── ...
+│   └── FASE5-PLAN.md
 │
 ├── assets/                            # Gedeelde assets
 │   └── emotions/                      # OLED emotie PNG's (128x64, 1-bit)
 │
-└── original_Picar-X-REFERENCE/        # Originele PiCar-X documentatie (referentie)
-    └── Documentation/
-        └── manual-chapters/
+└── original_Picar-X-REFERENCE/        # PiCar-X documentatie (referentie)
 ```
 
 ## Quick Start
@@ -119,14 +153,13 @@ nerdcarx/
 
 ## Status
 
-**Huidige fase:** 0 - Concept
+**Huidige fase:** 1a - STT (Voxtral)
 
-**Voortgang:**
-- [x] Concept document geschreven
-- [ ] README en project structuur
-- [ ] Fase documenten aangemaakt
-- [ ] .gitignore toegevoegd
-- [ ] Git repository geinitialiseerd
+**Laatste beslissing:** [D002 - STT keuze](DECISIONS.md#d002-stt---voxtral-mini-3b-fp8--vllm) (2026-01-10)
+
+**Huidige stap:** Docker setup en testen
+
+> Zie [`DECISIONS.md`](DECISIONS.md) voor alle beslissingen en rationale.
 
 ---
 
