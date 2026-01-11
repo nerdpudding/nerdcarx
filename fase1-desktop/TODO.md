@@ -424,15 +424,24 @@ LLM maakt zin 1 → TTS maakt zin 1 → Afspelen zin 1
 
 | Voordeel | Nadeel |
 |----------|--------|
-| Allersnelste mogelijke response | WebSocket is voor Fish Audio CLOUD SDK |
-| Professionele UX | Lokale fish-speech server ondersteunt dit NIET goed |
+| Allersnelste mogelijke response | WebSocket streaming is voor Fish Audio CLOUD API/SDK |
+| Professionele UX | Lokale fish-speech HTTP server ondersteunt dit NIET |
 | | HTTP `stream=true` geeft vaak ruis/klikken |
 | | Complexe implementatie |
 
 **Waarom dit NIET voor ons werkt:**
-- Fish Audio WebSocket (`stream_websocket`) is voor hun **cloud API/SDK**
-- Onze lokale fish-speech Docker heeft geen betrouwbare streaming
-- Eerdere test met `stream=true` gaf ruis (audio chunks zijn "netwerk pakketjes", geen nette audio blokken)
+
+1. **WebSocket streaming = Fish Audio cloud API/SDK**
+   - De officiële real-time WebSocket streaming docs (`stream_websocket`, `convertRealtime`) horen bij de **Fish Audio cloud API en SDK**
+   - Dit is NIET beschikbaar in de lokale `fish-speech` Docker/HTTP server die wij draaien
+
+2. **Lokale fish-speech server = alleen HTTP**
+   - Onze setup: lokale Docker container met HTTP `/v1/tts` endpoint
+   - `stream=true` via HTTP geeft ruis omdat chunks "netwerk pakketjes" zijn, geen nette audio blokken
+
+3. **Conclusie**
+   - Voor cloud: WebSocket streaming mogelijk via Fish Audio SDK
+   - Voor lokaal (wij): Pseudo-streaming per zin is de juiste aanpak
 
 ---
 
@@ -452,13 +461,47 @@ LLM maakt zin 1 → TTS maakt zin 1 → Afspelen zin 1
 
 ```python
 # orchestrator/main.py - nieuwe aanpak
+import re
 
 def split_into_sentences(text: str) -> list[str]:
-    """Split tekst in zinnen."""
-    import re
-    # Split op . ! ? gevolgd door spatie of einde
+    """
+    Split tekst in zinnen, maar bescherm afkortingen.
+
+    Let op: Simpele regex splitst ook op "Dr.", "bv.", "etc."
+    Daarom eerst afkortingen tijdelijk vervangen.
+    """
+
+    # 1. Bescherm bekende afkortingen (vervang punt tijdelijk)
+    protected = {
+        'Dr.': 'Dr<DOT>',
+        'Mr.': 'Mr<DOT>',
+        'bv.': 'bv<DOT>',
+        'bijv.': 'bijv<DOT>',
+        'etc.': 'etc<DOT>',
+        'evt.': 'evt<DOT>',
+        'incl.': 'incl<DOT>',
+        'excl.': 'excl<DOT>',
+        'nr.': 'nr<DOT>',
+        'ca.': 'ca<DOT>',
+        'o.a.': 'o<DOT>a<DOT>',
+        'i.p.v.': 'i<DOT>p<DOT>v<DOT>',
+    }
+
+    for abbr, placeholder in protected.items():
+        text = text.replace(abbr, placeholder)
+
+    # 2. Split op zin-einden (. ! ? gevolgd door spatie of einde)
     sentences = re.split(r'(?<=[.!?])\s+', text)
-    return [s.strip() for s in sentences if s.strip()]
+
+    # 3. Herstel afkortingen
+    result = []
+    for s in sentences:
+        for abbr, placeholder in protected.items():
+            s = s.replace(placeholder, abbr)
+        if s.strip():
+            result.append(s.strip())
+
+    return result
 
 async def process_with_pseudo_streaming(llm_response: str, client):
     """Genereer en stuur audio per zin."""
@@ -506,7 +549,10 @@ async def pipeline_tts(llm_stream, client):
 ```
 
 **2. Micro-buffering (playback kant):**
-Buffer kort (150-300ms) voordat je begint af te spelen → voorkomt "gaten" door netwerk-jitter:
+Buffer kort (150-300ms) voordat je begint af te spelen → voorkomt "gaten" door netwerk-jitter.
+
+> **Note:** Dit past bij Fish Audio's advies: "Buffer 2-3 audio chunks" voor smooth playback.
+> Cross-fading tussen chunks is optioneel - bij pseudo-streaming per zin is buffering meestal genoeg.
 
 ```python
 # vad_conversation.py of Pi client
