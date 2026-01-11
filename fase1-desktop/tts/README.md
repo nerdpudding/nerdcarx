@@ -1,122 +1,229 @@
-# TTS - Chatterbox Multilingual
+# TTS - Fish Audio S1-mini
 
-Text-to-Speech voor NerdCarX met Nederlandse spraaksynthese en emotie-expressie.
+Text-to-Speech voor NerdCarX met Nederlandse spraaksynthese.
+
+> **Opmerking:** Fish Audio vervangt Chatterbox vanwege betere latency (~1.2s vs 5-20s). Zie [D009](../../DECISIONS.md) voor details.
 
 ## Model
 
-**Chatterbox Multilingual** (ResembleAI)
-- 500M parameters
-- 23 talen inclusief Nederlands
-- Zero-shot voice cloning
-- Emotie controle via `exaggeration` parameter
+**Fish Audio S1-mini** (fishaudio/openaudio-s1-mini)
+- 0.5B parameters
+- #1 op TTS-Arena2 benchmark
+- Voice cloning via reference audio
+- Emotie markers ondersteund
 
-## Installatie
+## Quick Start
+
+### 1. Model downloaden (eenmalig)
 
 ```bash
-# Aparte conda environment (torch==2.6.0 specifiek)
-conda create -n nerdcarx-tts python=3.11 -y
-conda activate nerdcarx-tts
-pip install chatterbox-tts
+cd /home/rvanpolen/vibe_claude_kilo_cli_exp/nerdcarx/original_fish-speech-REFERENCE
+
+git lfs install
+git clone https://huggingface.co/fishaudio/openaudio-s1-mini checkpoints/openaudio-s1-mini
 ```
 
-## Gebruik
+### 2. Docker starten
 
-### Basis generatie
+```bash
+cd /home/rvanpolen/vibe_claude_kilo_cli_exp/nerdcarx/original_fish-speech-REFERENCE
 
-```python
-from chatterbox.mtl_tts import ChatterboxMultilingualTTS
-import torchaudio as ta
-
-model = ChatterboxMultilingualTTS.from_pretrained(device="cuda")
-
-wav = model.generate(
-    text="Hallo, ik ben NerdCarX",
-    language_id="nl"
-)
-ta.save("output.wav", wav, model.sr)
+docker run -d --gpus device=0 --name fish-tts \
+    -v $(pwd)/checkpoints:/app/checkpoints \
+    -v $(pwd)/references:/app/references \
+    -p 8250:8080 --entrypoint uv \
+    fishaudio/fish-speech \
+    run tools/api_server.py --listen 0.0.0.0:8080 --compile
 ```
 
-### Met emotie parameters
+> **Eerste start:** 2-5 minuten (compile). Daarna ~1.2s per request.
+>
+> **References zijn persistent:** De `dutch2` reference is al aanwezig in `references/dutch2/`.
+> Geen upload nodig na container restart.
 
-```python
-wav = model.generate(
-    text="Wat leuk dat je er bent!",
-    language_id="nl",
-    exaggeration=0.8,  # Meer expressief (0.25-2.0)
-    cfg_weight=0.3     # Langzamer, dramatischer (0.2-1.0)
-)
+### 3. Testen
+
+```bash
+curl -X POST http://localhost:8250/v1/tts \
+    -H "Content-Type: application/json" \
+    -d '{"text": "Hallo, ik ben NerdCarX!", "reference_id": "dutch2", "temperature": 0.2, "top_p": 0.5, "format": "wav"}' \
+    --output test.wav
+
+aplay test.wav
 ```
 
-### Voice cloning (zero-shot)
+### Check references
 
-```python
-# Reference audio: minimaal 10 seconden, WAV, Nederlands
-wav = model.generate(
-    text="Hallo!",
-    language_id="nl",
-    audio_prompt_path="voice_reference.wav"
-)
+```bash
+curl http://localhost:8250/v1/references/list
+# Moet "dutch2" tonen
 ```
 
 ## Parameters
 
-| Parameter | Range | Default | Effect |
-|-----------|-------|---------|--------|
-| `exaggeration` | 0.25-2.0 | 0.5 | Emotie intensiteit |
-| `cfg_weight` | 0.2-1.0 | 0.5 | Pacing (lager = langzamer) |
-| `temperature` | 0.05-5.0 | 0.8 | Variatie |
+### Geteste configuraties
 
-### Emotie mapping (NerdCarX)
+| Configuratie | temperature | top_p | Omschrijving |
+|--------------|-------------|-------|--------------|
+| **ultra_consistent** | **0.2** | **0.5** | **GEKOZEN - beste Nederlandse uitspraak** |
+| very_consistent | 0.3 | 0.6 | Iets natuurlijker, kleine variatie |
 
-| Emotie | exaggeration | cfg_weight |
-|--------|--------------|------------|
-| neutral | 0.5 | 0.5 |
-| happy | 0.7 | 0.4 |
-| excited | 0.9 | 0.3 |
-| sad | 0.6 | 0.5 |
-| angry | 0.8 | 0.4 |
-| tired | 0.3 | 0.6 |
-| bored | 0.3 | 0.6 |
-| curious | 0.6 | 0.5 |
+> Lagere waarden = consistenter maar minder natuurlijk
+> Hogere waarden = meer variatie maar risico op accent drift
 
-## Service
+### Emotie markers
 
-TTS draait als FastAPI service op port 8250.
+Fish Audio ondersteunt emotie markers in de tekst:
+
+```
+(happy) Wat leuk!
+(sad) Dat is jammer.
+(excited) Dit is geweldig!
+(angry) Ik ben niet blij.
+(whisper) Dit is een geheim.
+```
+
+## API
+
+**Endpoint:** `http://localhost:8250/v1/tts`
+
+### Request
+
+```json
+{
+    "text": "Hallo, hoe gaat het?",
+    "reference_id": "dutch2",
+    "temperature": 0.2,
+    "top_p": 0.5,
+    "format": "wav"
+}
+```
+
+### Response
+
+Audio bytes (WAV format)
+
+### Health check
 
 ```bash
-conda activate nerdcarx-tts
-cd fase1-desktop/tts
-uvicorn tts_service:app --port 8250
+curl http://localhost:8250/v1/health
 ```
 
-### API
+## Folder Structuur
+
+### Waarom twee locaties?
+
+| Locatie | Doel |
+|---------|------|
+| `original_fish-speech-REFERENCE/` | Gecloned Fish Audio repo + model + references (Docker mount) |
+| `fase1-desktop/tts/` | Onze project TTS code, docs, tests |
+
+### Overzicht
 
 ```
-GET /health
-POST /synthesize
-  Body: { "text": "...", "emotion": "happy" }
-  Response: audio/wav bytes
+nerdcarx/
+│
+├── original_fish-speech-REFERENCE/      # FISH AUDIO REPO (gecloned)
+│   ├── checkpoints/
+│   │   └── openaudio-s1-mini/           # Model (3.4GB via git lfs)
+│   └── references/                       # PERSISTENT REFERENCES (Docker mount)
+│       └── dutch2/                       # Nederlandse stem
+│           ├── reference.mp3
+│           └── reference.lab
+│
+└── fase1-desktop/
+    └── tts/                              # ONZE TTS CODE
+        ├── README.md                     # Dit bestand
+        ├── test_output/                  # Test audio output
+        └── fishaudio/
+            ├── elevenreference/          # Bron bestanden (ElevenLabs export)
+            │   ├── reference1_NL_FM.mp3
+            │   ├── reference1_NL_FM.txt
+            │   ├── reference2_NL_FM.mp3  # Bron voor dutch2
+            │   └── reference2_NL_FM.txt
+            └── test_parameters.py        # Parameter test script
 ```
 
-## Bestanden
+### Docker Mounts
 
+De Fish Audio container mount twee folders:
+
+```bash
+-v $(pwd)/checkpoints:/app/checkpoints   # Model
+-v $(pwd)/references:/app/references     # Voice references (persistent!)
 ```
-tts/
-├── README.md              # Dit bestand
-├── test_chatterbox.py     # Test script
-├── tts_service.py         # FastAPI service
-├── test_output/           # Test output folder
-└── voice_reference.wav    # (optioneel) Nederlandse stem
-```
+
+Waarbij `$(pwd)` = `original_fish-speech-REFERENCE/`
 
 ## Performance
 
-- Latency: ~1-2s per zin op RTX 4090
-- Sampling speed: ~52-55 it/s
-- VRAM: ~4-6GB (model + inference)
+| Metric | Waarde |
+|--------|--------|
+| Latency | ~1.2s per zin |
+| Model size | 0.5B parameters |
+| VRAM | ~4-6GB |
+| Compile time | 2-5 min (eenmalig) |
+
+### Vergelijking met alternatieven
+
+| Model | Latency | Nederlands | Status |
+|-------|---------|------------|--------|
+| **Fish Audio S1-mini** | **~1.2s** | ✅ (via reference) | **ACTIEF** |
+| Chatterbox | 5-20s | ✅ | ❌ Te traag |
+| VibeVoice | 1-2s | ❌ Belgisch | ❌ Kwaliteit |
+| Piper | <100ms | ✅ | Backup optie |
+
+## Troubleshooting
+
+### Container bestaat al
+
+```bash
+docker stop fish-tts && docker rm fish-tts
+# Dan opnieuw docker run ...
+```
+
+### Server start niet
+
+Controleer of de checkpoints correct zijn gedownload:
+
+```bash
+ls original_fish-speech-REFERENCE/checkpoints/openaudio-s1-mini/
+# Moet meerdere bestanden tonen (.safetensors, config.json, etc.)
+```
+
+### Reference niet gevonden
+
+Controleer of de references folder correct gemount is:
+
+```bash
+docker exec fish-tts ls /app/references/dutch2/
+# Moet reference.mp3 en reference.lab tonen
+```
+
+### Nieuwe reference toevoegen
+
+Als je een nieuwe reference wilt toevoegen:
+
+```bash
+# 1. Maak folder aan
+mkdir -p original_fish-speech-REFERENCE/references/{nieuwe_id}
+
+# 2. Kopieer audio bestand (mp3/wav)
+cp jouw_audio.mp3 original_fish-speech-REFERENCE/references/{nieuwe_id}/reference.mp3
+
+# 3. Maak .lab bestand met de gesproken tekst
+echo "De tekst die in de audio wordt gesproken" > original_fish-speech-REFERENCE/references/{nieuwe_id}/reference.lab
+
+# 4. Herstart container (of hij pikt het automatisch op)
+```
 
 ## Referenties
 
-- [HuggingFace](https://huggingface.co/ResembleAI/chatterbox)
-- [Demo](https://resemble-ai.github.io/chatterbox_demopage/)
-- [GitHub](https://github.com/resemble-ai/chatterbox)
+- [Fish Audio GitHub](https://github.com/fishaudio/fish-speech)
+- [HuggingFace Model](https://huggingface.co/fishaudio/openaudio-s1-mini)
+- [Fish Audio Docs](https://docs.fish.audio/)
+- [D009 Beslissing](../../DECISIONS.md)
+
+---
+
+*Laatst bijgewerkt: 2026-01-11 (References nu persistent via volume mount)*

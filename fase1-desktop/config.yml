@@ -106,31 +106,42 @@ emotions:
     - proud      # 😤 trots
     - worried    # 😟 bezorgd
 
-# === TTS (Chatterbox Multilingual) ===
+# === TTS (Fish Audio S1-mini) ===
 # Text-to-Speech service voor Nederlandse spraaksynthese
+# Vervangt Chatterbox vanwege betere latency (~1.2s vs 5-20s)
+#
+# Docker starten:
+#   cd original_fish-speech-REFERENCE
+#   docker run --gpus device=0 --name fish-tts \
+#       -v $(pwd)/checkpoints:/app/checkpoints \
+#       -p 8250:8080 --entrypoint uv \
+#       fishaudio/fish-speech \
+#       run tools/api_server.py --listen 0.0.0.0:8080 --compile
 #
 tts:
   url: "http://localhost:8250"
   enabled: true  # Zet op false om TTS over te slaan
-  language: "nl"
-  # voice_reference: "tts/voice_reference.wav"  # Optioneel: custom stem
 
-  # Emotie → TTS parameter mapping
-  # exaggeration: emotie intensiteit (0.25-2.0, default 0.5)
-  # cfg_weight: pacing (0.2-1.0, lager = langzamer)
-  emotion_mapping:
-    neutral:   { exaggeration: 0.5, cfg_weight: 0.5 }
-    happy:     { exaggeration: 0.7, cfg_weight: 0.4 }
-    excited:   { exaggeration: 0.9, cfg_weight: 0.3 }
-    sad:       { exaggeration: 0.6, cfg_weight: 0.5 }
-    angry:     { exaggeration: 0.8, cfg_weight: 0.4 }
-    surprised: { exaggeration: 0.8, cfg_weight: 0.4 }
-    curious:   { exaggeration: 0.6, cfg_weight: 0.5 }
-    confused:  { exaggeration: 0.5, cfg_weight: 0.5 }
-    thinking:  { exaggeration: 0.4, cfg_weight: 0.6 }
-    shy:       { exaggeration: 0.4, cfg_weight: 0.5 }
-    love:      { exaggeration: 0.7, cfg_weight: 0.4 }
-    tired:     { exaggeration: 0.3, cfg_weight: 0.6 }
-    bored:     { exaggeration: 0.3, cfg_weight: 0.6 }
-    proud:     { exaggeration: 0.7, cfg_weight: 0.4 }
-    worried:   { exaggeration: 0.5, cfg_weight: 0.5 }
+  # Reference audio voor Nederlandse stem
+  # ID van geüploade reference in Fish Audio server
+  reference_id: "dutch2"  # ElevenLabs NL vrouwenstem (bestanden in tts/fishaudio/elevenreference/)
+
+  # === PARAMETER CONFIGURATIES ===
+  # Getest zijn de volgende opties - pas aan naar voorkeur:
+  #
+  # ultra_consistent (ACTIEF) - Beste Nederlandse uitspraak, zeer consistent
+  #   temperature: 0.2
+  #   top_p: 0.5
+  #
+  # very_consistent - Iets natuurlijker, kleine variatie toegestaan
+  #   temperature: 0.3
+  #   top_p: 0.6
+  #
+  # Lagere temperature/top_p = consistenter maar minder natuurlijk
+  # Hogere temperature/top_p = meer variatie maar risico op accent drift
+  #
+  temperature: 0.2  # ultra_consistent (0.2) of very_consistent (0.3)
+  top_p: 0.5        # ultra_consistent (0.5) of very_consistent (0.6)
+
+  # Output format
+  format: "wav"

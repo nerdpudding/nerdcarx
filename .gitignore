@@ -70,8 +70,12 @@ models/
 # Maar bewaar test samples
 !**/test-audio/*.wav
 !**/test-audio/*.mp3
+# Reference audio voor TTS
+!**/elevenreference/*.mp3
+!**/references/**/*.mp3
+!**/references/**/*.lab
 
-# Images (behalve assets)
+# Images (behalve assets en test fotos)
 *.jpg
 *.jpeg
 *.png
@@ -79,6 +83,8 @@ models/
 *.bmp
 !assets/**/*.png
 !assets/**/*.gif
+!**/vad-desktop/*.jpg
+!**/vad-desktop/*.png
 
 # Logs
 *.log

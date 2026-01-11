@@ -68,7 +68,7 @@ Een interactieve AI-gestuurde robotauto bouwen die:
               │  Orchestrator (FastAPI)│◄────────────►│  Wake Word (Porcupine) │
               │  STT (Voxtral)         │   WebSocket  │  Audio Capture (Mic)   │
               │  LLM (Ministral 14B)   │     LAN      │  Camera (Vision)       │
-              │  TTS (Chatterbox)      │              │  OLED (Emoties)        │
+              │  TTS (Fish Audio)      │              │  OLED (Emoties)        │
               └────────────────────────┘              │  Motors/Servo's        │
                       GPU Processing                  └────────────────────────┘
 ```
@@ -116,10 +116,11 @@ nerdcarx/
 │   │   └── README.md
 │   ├── llm-ministral/                 # LLM (Ministral via Ollama)
 │   │   └── README.md
-│   ├── tts/                           # Text-to-Speech (Chatterbox)
+│   ├── tts/                           # Text-to-Speech (Fish Audio)
 │   │   ├── README.md
-│   │   ├── tts_service.py             # FastAPI TTS service
-│   │   └── test_chatterbox.py         # Test script
+│   │   └── fishaudio/                 # Fish Audio S1-mini setup
+│   │       ├── elevenreference/       # NL reference audio bestanden
+│   │       └── test_parameters.py     # Parameter test script
 │   ├── orchestrator/                  # FastAPI orchestrator
 │   │   └── README.md
 │   └── vad-desktop/                   # VAD hands-free testing
@@ -135,7 +136,8 @@ nerdcarx/
 │   └── PLAN.md
 │
 ├── original_Picar-X-REFERENCE/        # PiCar-X documentatie (referentie)
-└── original_chatterbox-REFERENCE/     # Chatterbox TTS repo (referentie)
+├── original_chatterbox-REFERENCE/     # Chatterbox TTS repo (archived)
+└── original_fish-speech-REFERENCE/    # Fish Audio TTS repo + model checkpoints
 ```
 
 ## Quick Start
@@ -150,10 +152,14 @@ cd fase1-desktop/stt-voxtral/docker && docker compose up -d
 ollama serve  # of via docker
 ollama pull ministral-3:8b
 
-# 3. Start TTS Service (aparte conda env!)
-conda activate nerdcarx-tts
-cd fase1-desktop/tts
-uvicorn tts_service:app --port 8250
+# 3. Start Fish Audio TTS (Docker)
+cd original_fish-speech-REFERENCE
+docker run -d --gpus device=0 --name fish-tts \
+    -v $(pwd)/checkpoints:/app/checkpoints \
+    -v $(pwd)/references:/app/references \
+    -p 8250:8080 --entrypoint uv \
+    fishaudio/fish-speech \
+    run tools/api_server.py --listen 0.0.0.0:8080 --compile
 
 # 4. Start Orchestrator
 conda activate nerdcarx-vad
@@ -193,25 +199,25 @@ python vad_conversation.py
 - LLM (Ministral 8B/14B) - responses + function calling op GPU0
 - Vision (take_photo tool) - foto analyse on-demand
 - Emotion State Machine - persistente emotie state met 15 emoties
-- TTS (Chatterbox) - Nederlandse spraaksynthese met emotie
+- TTS (Fish Audio S1-mini) - Nederlandse spraaksynthese via reference audio
 - VAD - hands-free gesprekken met duidelijke debug output
 - Centrale config (config.yml) met hot reload
 
-**TTS (Chatterbox Multilingual):**
-- Model: ResembleAI/chatterbox (500M params)
-- Nederlands native support
-- Emotie → exaggeration parameter mapping
-- Aparte conda env: `nerdcarx-tts`
+**TTS (Fish Audio S1-mini):**
+- Model: fishaudio/openaudio-s1-mini (0.5B params)
+- Nederlands via ElevenLabs reference audio (dutch2)
+- Emotie markers in tekst ondersteund
+- Docker container met GPU
 - Service op port 8250
 
 **Performance:**
 - Vision latency: ~5-10s (acceptabel voor demo)
-- TTS latency: ~1-2s per zin
+- TTS latency: ~1.2s per zin (Fish Audio)
 - Emotion response: instant (tool call parsing)
 
 **Volgende stap:** End-to-end testing, daarna Fase 2 (Refactor)
 
-**Laatste beslissing:** [D008 - TTS Chatterbox](DECISIONS.md) (2026-01-11)
+**Laatste beslissing:** [D009 - TTS Fish Audio](DECISIONS.md) (2026-01-11)
 
 > Zie [`DECISIONS.md`](DECISIONS.md) voor alle beslissingen en rationale.
 

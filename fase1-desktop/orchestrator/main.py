@@ -52,11 +52,14 @@ DEFAULT_EMOTION = config["emotions"]["default"]
 AUTO_RESET_MINUTES = config["emotions"]["auto_reset_minutes"]
 VISION_MOCK_IMAGE_PATH = Path(__file__).parent.parent / config["vision"]["mock_image_path"]
 
-# TTS settings
+# TTS settings (Fish Audio S1-mini)
 TTS_CONFIG = config.get("tts", {})
 TTS_URL = TTS_CONFIG.get("url", "http://localhost:8250")
 TTS_ENABLED = TTS_CONFIG.get("enabled", True)
-TTS_EMOTION_MAPPING = TTS_CONFIG.get("emotion_mapping", {})
+TTS_REFERENCE_ID = TTS_CONFIG.get("reference_id", "dutch2")
+TTS_TEMPERATURE = TTS_CONFIG.get("temperature", 0.2)
+TTS_TOP_P = TTS_CONFIG.get("top_p", 0.5)
+TTS_FORMAT = TTS_CONFIG.get("format", "wav")
 
 
 app = FastAPI(
@@ -191,11 +194,14 @@ def update_emotion_state(conversation_id: str, emotion: str) -> None:
         emotion_states[conversation_id]["last_interaction"] = datetime.now()
 
 
-# === TTS SERVICE ===
+# === TTS SERVICE (Fish Audio S1-mini) ===
 async def synthesize_speech(text: str, emotion: str, client: httpx.AsyncClient) -> Optional[str]:
     """
-    Roep TTS service aan om tekst naar spraak te converteren.
+    Roep Fish Audio TTS service aan om tekst naar spraak te converteren.
     Returns: base64 encoded audio, of None bij fout.
+
+    Note: emotion parameter wordt behouden voor interface compatibiliteit,
+    maar Fish Audio gebruikt reference_id voor stem consistentie.
     """
     if not TTS_ENABLED or not text.strip():
         return None
@@ -203,11 +209,14 @@ async def synthesize_speech(text: str, emotion: str, client: httpx.AsyncClient) 
     try:
         payload = {
             "text": text,
-            "emotion": emotion
+            "reference_id": TTS_REFERENCE_ID,
+            "temperature": TTS_TEMPERATURE,
+            "top_p": TTS_TOP_P,
+            "format": TTS_FORMAT
         }
 
         resp = await client.post(
-            f"{TTS_URL}/synthesize",
+            f"{TTS_URL}/v1/tts",
             json=payload,
             timeout=30.0
         )
@@ -421,11 +430,11 @@ async def status():
     except Exception:
         results["voxtral"] = "unreachable"
 
-    # Check TTS
+    # Check TTS (Fish Audio)
     if TTS_ENABLED:
         try:
             async with httpx.AsyncClient(timeout=5.0) as client:
-                resp = await client.get(f"{TTS_URL}/health")
+                resp = await client.get(f"{TTS_URL}/v1/health")
                 results["tts"] = "ok" if resp.status_code == 200 else "error"
         except Exception:
             results["tts"] = "unreachable"
@@ -461,7 +470,11 @@ async def get_config():
         },
         "tts": {
             "url": TTS_URL,
-            "enabled": TTS_ENABLED
+            "enabled": TTS_ENABLED,
+            "reference_id": TTS_REFERENCE_ID,
+            "temperature": TTS_TEMPERATURE,
+            "top_p": TTS_TOP_P,
+            "format": TTS_FORMAT
         }
     }
 
@@ -716,7 +729,7 @@ async def reload_config():
     global config, OLLAMA_MODEL, OLLAMA_TEMPERATURE, OLLAMA_TOP_P
     global OLLAMA_REPEAT_PENALTY, OLLAMA_NUM_CTX, DEFAULT_SYSTEM_PROMPT
     global AVAILABLE_EMOTIONS, DEFAULT_EMOTION, AUTO_RESET_MINUTES, VISION_MOCK_IMAGE_PATH
-    global TTS_CONFIG, TTS_URL, TTS_ENABLED, TTS_EMOTION_MAPPING
+    global TTS_CONFIG, TTS_URL, TTS_ENABLED, TTS_REFERENCE_ID, TTS_TEMPERATURE, TTS_TOP_P, TTS_FORMAT
 
     try:
         config = load_config()
@@ -732,11 +745,14 @@ async def reload_config():
         AUTO_RESET_MINUTES = config["emotions"]["auto_reset_minutes"]
         VISION_MOCK_IMAGE_PATH = Path(__file__).parent.parent / config["vision"]["mock_image_path"]
 
-        # TTS settings
+        # TTS settings (Fish Audio)
         TTS_CONFIG = config.get("tts", {})
         TTS_URL = TTS_CONFIG.get("url", "http://localhost:8250")
         TTS_ENABLED = TTS_CONFIG.get("enabled", True)
-        TTS_EMOTION_MAPPING = TTS_CONFIG.get("emotion_mapping", {})
+        TTS_REFERENCE_ID = TTS_CONFIG.get("reference_id", "dutch2")
+        TTS_TEMPERATURE = TTS_CONFIG.get("temperature", 0.2)
+        TTS_TOP_P = TTS_CONFIG.get("top_p", 0.5)
+        TTS_FORMAT = TTS_CONFIG.get("format", "wav")
 
         return {"status": "ok", "message": "Config herladen", "model": OLLAMA_MODEL, "tts_enabled": TTS_ENABLED}
     except Exception as e:

@@ -252,7 +252,7 @@ Emoties als persistente state in de orchestrator. De robot simuleert emoties die
 - `vad-desktop/vad_conversation.py` - Verbeterde debug output
 - `config.yml` - Emotie prompt instructies
 
-**Referentie:** [Plan](docs/plans/emotion_state_machine_2026-01-11.md)
+**Referentie:** Zie fase1-desktop/PLAN.md
 
 ---
 
@@ -260,7 +260,7 @@ Emoties als persistente state in de orchestrator. De robot simuleert emoties die
 
 **Datum:** 2026-01-11
 **Fase:** 1
-**Status:** ✅ Geïmplementeerd
+**Status:** ❌ Vervangen door D009 (te traag: 5-20s per response)
 
 **Besluit:**
 Chatterbox Multilingual voor Text-to-Speech met Nederlandse spraaksynthese.
@@ -312,18 +312,87 @@ Chatterbox Multilingual voor Text-to-Speech met Nederlandse spraaksynthese.
 
 ---
 
+### D009: TTS - Fish Audio S1-mini (vervangt D008)
+
+**Datum:** 2026-01-11
+**Fase:** 1
+**Status:** ✅ Geïmplementeerd
+
+**Besluit:**
+Fish Audio S1-mini vervangt Chatterbox als TTS vanwege betere latency.
+
+| Aspect | Keuze |
+|--------|-------|
+| Model | `fishaudio/openaudio-s1-mini` (0.5B parameters) |
+| Backend | Docker container met GPU |
+| Taal | Nederlands via reference audio |
+| Latency | ~1.2s per zin (vs 5-20s Chatterbox) |
+| Port | 8250 |
+
+**Rationale:**
+1. ~4x sneller dan Chatterbox (1.2s vs 5-20s)
+2. #1 op TTS-Arena2 benchmark
+3. Voice cloning via reference audio
+4. Actief ontwikkeld (MIT licentie)
+
+**Alternatieven getest:**
+| Model | Latency | Nederlands | Reden afgewezen |
+|-------|---------|------------|-----------------|
+| Chatterbox | 5-20s | ✅ Goed | Te traag |
+| VibeVoice | 1-2s | ❌ Belgisch accent | Kwaliteit |
+| Coqui XTTS-v2 | - | - | Project dood, Docker onbeschikbaar |
+| Piper | <100ms | ✅ | Backup optie (minder expressief) |
+
+**Setup:**
+```bash
+# Model downloaden (via git lfs)
+cd original_fish-speech-REFERENCE
+git lfs install
+git clone https://huggingface.co/fishaudio/openaudio-s1-mini checkpoints/openaudio-s1-mini
+
+# Docker starten
+docker run --gpus device=0 --name fish-tts \
+    -v $(pwd)/checkpoints:/app/checkpoints \
+    -p 8250:8080 --entrypoint uv \
+    fishaudio/fish-speech \
+    run tools/api_server.py --listen 0.0.0.0:8080 --compile
+```
+
+**Reference Audio:**
+- Bron: ElevenLabs Nederlandse vrouwenstem
+- ID: `dutch2`
+- Bestanden: `fase1-desktop/tts/fishaudio/elevenreference/`
+
+**Parameters (geteste configuraties):**
+| Configuratie | temperature | top_p | Omschrijving |
+|--------------|-------------|-------|--------------|
+| very_consistent | 0.3 | 0.6 | Iets natuurlijker, kleine variatie |
+| **ultra_consistent** | **0.2** | **0.5** | **GEKOZEN - beste Nederlandse uitspraak** |
+
+**API Voorbeeld:**
+```bash
+curl -X POST http://localhost:8250/v1/tts \
+    -H "Content-Type: application/json" \
+    -d '{"text": "Hallo!", "reference_id": "dutch2", "temperature": 0.2, "top_p": 0.5, "format": "wav"}' \
+    --output test.wav
+```
+
+**Referentie:** [Fish Audio README](fase1-desktop/tts/fishaudio/README.md)
+
+---
+
 ## Open vragen
 
 > Vragen die nog beantwoord moeten worden tijdens implementatie.
 
 | ID | Vraag | Verwacht in fase | Status |
 |----|-------|------------------|--------|
-| Q001 | Welke TTS? (Coqui, Piper, Bark, Kokoro, etc.) | 1 | ✅ Chatterbox Multilingual (D008) |
+| Q001 | Welke TTS? (Coqui, Piper, Bark, Kokoro, etc.) | 1 | ✅ Fish Audio S1-mini (D009) |
 | Q002 | TTS op desktop of Pi? | 1 | ✅ Desktop (aparte conda env) |
 | Q003 | Object detection op Pi? (YOLO) | Later | Open |
 | Q004 | Orchestrator framework? | 1d | ✅ Pure FastAPI |
 | Q005 | Context management strategy? (sliding window, truncation) | 2 | Open - intermittent 500 errors bij lange gesprekken met vision |
-| Q006 | TTS latency optimalisatie? (streaming, chunking, ander model) | 2 | Open - 5-20 sec per response is te traag |
+| Q006 | TTS latency optimalisatie? (streaming, chunking, ander model) | 2 | ✅ Fish Audio ~1.2s (D009) |
 | Q007 | TTS spreeksnelheid aanpassen? | 2 | Open - audio klinkt te snel |
 | Q008 | VRAM memory leak? | 2 | Open - ~18.3GB, lijkt toe te nemen |
 
@@ -340,8 +409,9 @@ Chatterbox Multilingual voor Text-to-Speech met Nederlandse spraaksynthese.
 | D005 | LLM keuze | 2026-01-11 | Actief |
 | D006 | Fase herindeling | 2026-01-11 | Actief |
 | D007 | Emotion State Machine | 2026-01-11 | ✅ Geïmplementeerd |
-| D008 | TTS keuze | 2026-01-11 | ✅ Geïmplementeerd |
+| D008 | TTS Chatterbox | 2026-01-11 | ❌ Vervangen door D009 |
+| D009 | TTS Fish Audio S1-mini | 2026-01-11 | ✅ Geïmplementeerd |
 
 ---
 
-*Laatst bijgewerkt: 2026-01-11 (TTS Chatterbox geïmplementeerd)*
+*Laatst bijgewerkt: 2026-01-11 (TTS Fish Audio vervangt Chatterbox)*

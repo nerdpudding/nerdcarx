@@ -16,25 +16,17 @@
 **Wat werkt:** ✅ Alle tests geslaagd
 - STT via Voxtral (Docker op GPU1)
 - LLM via Ministral 8B/14B (Ollama op GPU0)
-- TTS via Chatterbox Multilingual (conda env: nerdcarx-tts)
+- TTS via Fish Audio S1-mini (Docker, port 8250)
 - Orchestrator met centrale config + hot reload
 - VAD hands-free gesprekken
 - Vision via `take_photo` function call
 - Emoties via `show_emotion` function call
 
-**Performance notities:**
-- Vision latency ~5-10s (dubbele LLM call: tool detection + image analyse)
-- TTS latency ~1-2s per zin
-- Q8 quantization duidelijk beter dan Q4 voor response kwaliteit
-- Cold start na container restart kan eerste request vertragen
-
-**Wat nog moet:**
-- ~~End-to-end testing met VAD audio playback~~ ✅ Getest (2026-01-11)
-
-**Bekende issues (zie TESTPLAN.md):**
-- TTS latency: 5-20 sec (bottleneck)
-- TTS spreeksnelheid: te snel
-- VRAM: ~18.3GB, lijkt toe te nemen
+**Performance:**
+- Vision latency: ~5-10s (dubbele LLM call)
+- TTS latency: ~1.2s per zin (Fish Audio)
+- STT latency: 150-750ms
+- LLM latency: 700-1300ms
 
 ---
 
@@ -43,16 +35,19 @@
 ```
 fase1-desktop/
 ├── PLAN.md                 # Dit bestand
+├── TESTPLAN.md             # Test handleiding
 ├── config.yml              # Centrale configuratie
 ├── stt-voxtral/            # Speech-to-Text
 │   ├── docker/             # Docker setup
 │   └── README.md
 ├── llm-ministral/          # LLM setup
 │   └── README.md
-├── tts/                    # Text-to-Speech (Chatterbox)
+├── tts/                    # Text-to-Speech (Fish Audio)
 │   ├── README.md
-│   ├── tts_service.py      # FastAPI service (port 8250)
-│   └── test_chatterbox.py  # Test script
+│   └── fishaudio/          # Fish Audio setup
+│       ├── README.md
+│       ├── elevenreference/ # NL reference audio
+│       └── test_parameters.py
 ├── orchestrator/           # FastAPI orchestrator
 │   └── main.py
 └── vad-desktop/            # VAD hands-free testing
@@ -67,8 +62,8 @@ fase1-desktop/
 |-----------|--------|--------|--------------|
 | STT | [stt-voxtral/](./stt-voxtral/) | ✅ Werkt | Docker container op GPU1 |
 | LLM | [llm-ministral/](./llm-ministral/) | ✅ Werkt | Ministral 8B/14B via Ollama |
-| TTS | [tts/](./tts/) | ✅ Werkt | Chatterbox Multilingual (port 8250) |
-| Orchestrator | [orchestrator/](./orchestrator/) | ✅ Werkt | FastAPI + config.yml + TTS integratie |
+| TTS | [tts/](./tts/) | ✅ Werkt | Fish Audio S1-mini (port 8250) |
+| Orchestrator | [orchestrator/](./orchestrator/) | ✅ Werkt | FastAPI + config.yml + Fish Audio |
 | VAD | [vad-desktop/](./vad-desktop/) | ✅ Werkt | Hands-free gesprekken |
 
 ---
@@ -87,9 +82,15 @@ ollama:
 voxtral:
   temperature: 0.0     # Greedy voor transcriptie
 
+tts:  # Fish Audio S1-mini
+  url: "http://localhost:8250"
+  enabled: true
+  reference_id: "dutch2"
+  temperature: 0.2     # ultra_consistent
+  top_p: 0.5           # ultra_consistent
+
 system_prompt: |
   Je bent de AI van NerdCarX...
-  GEEN emoji's, GEEN grappen...
 
 vision:
   mock_image_path: "vad-desktop/test_foto.jpg"
@@ -109,10 +110,15 @@ ollama serve
 # In andere terminal:
 ollama pull ministral-3:8b  # of ministral-3:14b-instruct-2512-q8_0
 
-# Terminal 3: TTS Service (aparte conda env!)
-conda activate nerdcarx-tts
-cd fase1-desktop/tts
-uvicorn tts_service:app --port 8250
+# Terminal 3: Fish Audio TTS (Docker)
+cd original_fish-speech-REFERENCE
+docker run -d --gpus device=0 --name fish-tts \
+    -v $(pwd)/checkpoints:/app/checkpoints \
+    -v $(pwd)/references:/app/references \
+    -p 8250:8080 --entrypoint uv \
+    fishaudio/fish-speech \
+    run tools/api_server.py --listen 0.0.0.0:8080 --compile
+# References zijn persistent - dutch2 is al aanwezig
 
 # Terminal 4: Orchestrator
 conda activate nerdcarx-vad
@@ -128,40 +134,57 @@ python vad_conversation.py
 ```bash
 curl http://localhost:8200/health   # Orchestrator
 curl http://localhost:8200/status   # Alle services
-curl http://localhost:8250/health   # TTS
+curl http://localhost:8250/v1/health   # Fish Audio TTS
 ```
 
 ---
 
 ## Volgende Stappen
 
-### 1. End-to-end Testing ✅
+### 1. Orchestrator Fish Audio Integratie ✅
 
-- [x] VAD audio playback integreren
-- [x] Volledige loop testen: spraak → STT → LLM → TTS → audio
-- [x] Timing per component toegevoegd
+De orchestrator is aangepast voor Fish Audio API:
+- Config loading met reference_id, temperature, top_p, format
+- `synthesize_speech()` roept `/v1/tts` aan
+- Health check via `/v1/health`
+- Hot reload werkt met nieuwe TTS variabelen
 
-### 2. Fase 1 Afronden
+### 2. End-to-end Testing ⏳
 
-Fase 1 is technisch compleet en getest. Bekende issues:
-- TTS latency 5-20 sec (Q006)
-- TTS te snel (Q007)
-- VRAM memory concern (Q008)
+- [ ] Fish Audio Docker starten + reference uploaden
+- [ ] Volledige loop testen: spraak → STT → LLM → TTS → audio
+- [ ] Timing per component verifiëren
 
-**Optioneel (later):**
-- Voice reference voor Chatterbox
-- Fine-tune emotie → exaggeration mapping
-- TTS latency optimalisatie
+### 3. Fase 1 Afronden
 
-**→ Klaar voor Fase 2: Refactor + Dockerizen**
+- [x] TTS latency opgelost (D009 - Fish Audio ~1.2s vs Chatterbox 5-20s)
+- [x] Orchestrator Fish Audio integratie
+- [ ] End-to-end test
 
-### TTS Keuze (afgerond)
+**→ Daarna: Fase 2: Refactor + Dockerizen**
 
-**Gekozen:** Chatterbox Multilingual (D008)
-- Nederlands native support
-- Emotie via `exaggeration` parameter
-- ~1-2s latency per zin
-- Aparte conda env: `nerdcarx-tts`
+---
+
+## TTS Keuze (D009)
+
+**Gekozen:** Fish Audio S1-mini (vervangt Chatterbox)
+
+| Aspect | Waarde |
+|--------|--------|
+| Model | fishaudio/openaudio-s1-mini |
+| Latency | ~1.2s per zin |
+| Nederlands | Via reference audio (dutch2) |
+| Parameters | temperature=0.2, top_p=0.5 (ultra_consistent) |
+
+**Geteste alternatieven:**
+| Model | Latency | Status |
+|-------|---------|--------|
+| Chatterbox | 5-20s | ❌ Te traag |
+| VibeVoice | 1-2s | ❌ Belgisch accent |
+| Coqui XTTS-v2 | - | ❌ Project dood |
+| Fish Audio | ~1.2s | ✅ GEKOZEN |
+
+**Reference audio:** `tts/fishaudio/elevenreference/reference2_NL_FM.mp3`
 
 ---
 
@@ -176,12 +199,11 @@ Fase 1 is technisch compleet en getest. Bekende issues:
 | 2026-01-11 | Centrale config.yml |
 | 2026-01-11 | Repo reorganisatie (D006) |
 | 2026-01-11 | Alle tests geslaagd (spraak, vision, emoties) |
-| 2026-01-11 | Q8 model bevestigd: 20GB VRAM, goede kwaliteit |
-| 2026-01-11 | TTS: Chatterbox Multilingual gekozen (D008) |
-| 2026-01-11 | TTS service geïmplementeerd (port 8250) |
-| 2026-01-11 | Orchestrator TTS integratie compleet |
-| 2026-01-11 | VAD audio playback + timing per component |
-| 2026-01-11 | End-to-end test compleet (zie TESTPLAN.md) |
+| 2026-01-11 | TTS: Chatterbox getest maar te traag (5-20s) |
+| 2026-01-11 | TTS: Fish Audio S1-mini gekozen (D009) - ~1.2s |
+| 2026-01-11 | Config.yml bijgewerkt voor Fish Audio |
+| 2026-01-11 | Documentatie bijgewerkt |
+| 2026-01-11 | Orchestrator aangepast voor Fish Audio API |
 
 ---
 

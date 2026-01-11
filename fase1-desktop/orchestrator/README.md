@@ -105,6 +105,13 @@ ollama:
 
 voxtral:
   url: "http://localhost:8150"
+
+tts:  # Fish Audio S1-mini
+  url: "http://localhost:8250"
+  enabled: true
+  reference_id: "dutch2"
+  temperature: 0.2
+  top_p: 0.5
 ```
 
 Hot reload: `curl -X POST http://localhost:8200/reload-config`
@@ -129,6 +136,6 @@ Huidige tools:
 
 ## Volgende Stappen
 
-- [ ] TTS integratie
+- [ ] TTS integratie met Fish Audio S1-mini (zie [PLAN.md](../PLAN.md))
 - [ ] Dockerizen
 - [ ] Betere prompt engineering
