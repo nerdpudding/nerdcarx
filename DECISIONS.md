@@ -256,17 +256,76 @@ Emoties als persistente state in de orchestrator. De robot simuleert emoties die
 
 ---
 
+### D008: TTS - Chatterbox Multilingual
+
+**Datum:** 2026-01-11
+**Fase:** 1
+**Status:** ✅ Geïmplementeerd
+
+**Besluit:**
+Chatterbox Multilingual voor Text-to-Speech met Nederlandse spraaksynthese.
+
+| Aspect | Keuze |
+|--------|-------|
+| Model | `ResembleAI/chatterbox` (500M parameters) |
+| Taal | Nederlands (native support, language_id="nl") |
+| Emotie | `exaggeration` parameter (0.25-2.0) |
+| Latency | ~1-2s per zin op RTX 4090 |
+| Licentie | MIT |
+| Conda env | `nerdcarx-tts` (aparte env, torch==2.6.0) |
+
+**Rationale:**
+1. ElevenLabs-kwaliteit (won 63% in blind tests)
+2. Nederlandse taal native ondersteund
+3. Emotie controle via `exaggeration` parameter - past bij emotion state machine
+4. Zero-shot voice cloning mogelijk voor later
+5. MIT licentie, geen restricties
+
+**Alternatieven onderzocht:**
+| Model | Reden afgewezen |
+|-------|-----------------|
+| Kokoro | Geen Nederlands |
+| Fish Speech | Licentie restricties |
+| Coqui XTTS | Niet meer actief ontwikkeld |
+| Piper | Minder expressief |
+
+**Implementatie:**
+- TTS service op port 8250 (`tts_service.py`)
+- Orchestrator roept TTS aan met schone tekst (geen function calls)
+- Emotie → exaggeration mapping in config.yml
+- Response bevat `audio_base64` veld
+
+**Referentie:** [Plan](archive/old-plans/tts_chatterbox_2026-01-11.md)
+
+**Test Resultaten (2026-01-11):**
+| Component | Latency | Opmerking |
+|-----------|---------|-----------|
+| STT | 150-750ms | Uitstekend |
+| LLM | 700-1300ms | Acceptabel |
+| **TTS** | **5-20 sec** | **Bottleneck** |
+| Playback | ~2x TTS | Correlatie met audio lengte |
+
+**Bekende issues:**
+- TTS latency hoog (5-20 sec per response)
+- Audio klinkt te snel
+- VRAM ~18.3GB, lijkt toe te nemen (memory leak?)
+
+---
+
 ## Open vragen
 
 > Vragen die nog beantwoord moeten worden tijdens implementatie.
 
 | ID | Vraag | Verwacht in fase | Status |
 |----|-------|------------------|--------|
-| Q001 | Welke TTS? (Coqui, Piper, Bark, Kokoro, etc.) | 1 | **Volgende stap** |
-| Q002 | TTS op desktop of Pi? | 1 | Open |
+| Q001 | Welke TTS? (Coqui, Piper, Bark, Kokoro, etc.) | 1 | ✅ Chatterbox Multilingual (D008) |
+| Q002 | TTS op desktop of Pi? | 1 | ✅ Desktop (aparte conda env) |
 | Q003 | Object detection op Pi? (YOLO) | Later | Open |
 | Q004 | Orchestrator framework? | 1d | ✅ Pure FastAPI |
 | Q005 | Context management strategy? (sliding window, truncation) | 2 | Open - intermittent 500 errors bij lange gesprekken met vision |
+| Q006 | TTS latency optimalisatie? (streaming, chunking, ander model) | 2 | Open - 5-20 sec per response is te traag |
+| Q007 | TTS spreeksnelheid aanpassen? | 2 | Open - audio klinkt te snel |
+| Q008 | VRAM memory leak? | 2 | Open - ~18.3GB, lijkt toe te nemen |
 
 ---
 
@@ -281,7 +340,8 @@ Emoties als persistente state in de orchestrator. De robot simuleert emoties die
 | D005 | LLM keuze | 2026-01-11 | Actief |
 | D006 | Fase herindeling | 2026-01-11 | Actief |
 | D007 | Emotion State Machine | 2026-01-11 | ✅ Geïmplementeerd |
+| D008 | TTS keuze | 2026-01-11 | ✅ Geïmplementeerd |
 
 ---
 
-*Laatst bijgewerkt: 2026-01-11 (emotion state machine volledig werkend)*
+*Laatst bijgewerkt: 2026-01-11 (TTS Chatterbox geïmplementeerd)*

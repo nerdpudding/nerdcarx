@@ -1,253 +1,180 @@
-# Testplan Fase 1
+# Testplan: TTS Integratie
 
-Stap-voor-stap handleiding om de huidige setup te testen.
-
----
-
-## Folder Overzicht
-
-```
-fase1-desktop/
-├── config.yml          ← CENTRALE CONFIG (model, temp, prompt, etc.)
-├── PLAN.md             ← Documentatie
-├── TESTPLAN.md         ← Dit bestand
-│
-├── stt-voxtral/        ← Voxtral STT (Docker)
-│   └── docker/         ← docker-compose.yml hier
-│
-├── orchestrator/       ← FastAPI server
-│   └── main.py         ← De orchestrator code
-│
-├── vad-desktop/        ← VAD client scripts
-│   ├── vad_conversation.py  ← Hands-free gesprekken
-│   └── test_foto.jpg   ← Mock foto voor take_photo
-│
-├── llm-ministral/      ← (leeg, voor documentatie later)
-└── tts/                ← (leeg, voor TTS later)
-```
+**Datum:** 2026-01-11
+**Status:** ✅ Getest - Werkend met bekende issues
 
 ---
 
-## Vereisten
+## Test Resultaten (2026-01-11)
 
-- [ ] Conda environment actief: `conda activate nerdcarx-vad`
-- [ ] PyYAML geïnstalleerd: `pip install pyyaml`
-- [ ] Model gedownload: `docker exec ollama-nerdcarx ollama pull ministral-3:14b-instruct-2512-q8_0`
+### Timing Analyse
+
+| Turn | Audio In | STT | LLM | TTS | Playback | Totaal |
+|------|----------|-----|-----|-----|----------|--------|
+| 1 | 2.7s | 144ms | 232ms | 0ms* | 0ms | 399ms |
+| 2 | 2.8s | 142ms | 703ms | 4582ms | 8879ms | 14.3s |
+| 3 | 15.4s | 753ms | 1233ms | 19610ms | 38823ms | 60.5s |
+| 4 | 12.2s | 656ms | 9625ms | 12978ms | 25049ms | 48.3s |
+| 5 | 3.5s | 223ms | 5038ms | 10075ms | 19697ms | 35.1s |
+| 6 | 15.4s | 745ms | 1246ms | 10868ms | 20817ms | 33.7s |
+
+*Turn 1: Lege response van LLM, geen TTS audio gegenereerd
+
+### Gemiddelde Latency (excl. outliers)
+
+| Component | Tijd | Percentage |
+|-----------|------|------------|
+| STT (Voxtral) | ~200-750ms | ~5% |
+| LLM (Ministral 8B) | ~700-1300ms | ~10% |
+| **TTS (Chatterbox)** | **5-20 sec** | **~40%** |
+| Playback | ~2x TTS tijd | ~45% |
+
+**Conclusie:** TTS is de grootste bottleneck.
+
+### Bekende Issues
+
+| Issue | Beschrijving | Prioriteit |
+|-------|--------------|------------|
+| TTS Latency | 5-20 seconden per response | Hoog |
+| TTS Spreeksnelheid | Audio klinkt te snel | Medium |
+| Emotion in tekst | LLM schrijft soms emotie in tekst ipv tool call | Laag |
+| Lege response | Turn 1 had lege response, geen TTS | Laag |
+| VRAM gebruik | ~18.3GB op 4090, lijkt toe te nemen | Onderzoeken |
+
+### Observaties
+
+1. **STT (Voxtral)**: Uitstekend! Zeer snel, ~150ms voor korte audio
+2. **LLM (Ministral 8B)**: Acceptabel, soms spikes (Turn 4: 9.6s)
+3. **TTS (Chatterbox)**: Bottleneck - lange generatietijd
+4. **Vision (take_photo)**: Werkt, voegt ~3-4s toe aan LLM tijd
+5. **Emotion tool calls**: Werkt meestal, soms in tekst verwerkt
+
+### VRAM Notitie
+
+- GPU0 (RTX 4090): ~18.3GB in gebruik
+- Lijkt geleidelijk toe te nemen tijdens gesprek
+- TTS zou geen context moeten bijhouden - mogelijk memory leak?
+- **TODO:** Monitoren en onderzoeken
 
 ---
 
-## Stap 1: Start Voxtral STT
+## Test Procedure
+
+### Vereisten
+
+| Service | Port | Conda Env |
+|---------|------|-----------|
+| Voxtral STT | 8150 | (Docker) |
+| Ollama LLM | 11434 | - |
+| Orchestrator | 8200 | nerdcarx-vad |
+| TTS Service | 8250 | nerdcarx-tts |
+
+### Stap 1: Start Services
 
 ```bash
+# Terminal 1: Voxtral (als nog niet draait)
 cd fase1-desktop/stt-voxtral/docker
 docker compose up -d
-docker compose logs -f  # Wacht tot "Uvicorn running"
-```
 
-**Check:**
-```bash
-curl http://localhost:8150/health
-# Verwacht: {"status":"ok"}
-```
+# Terminal 2: TTS
+conda activate nerdcarx-tts
+cd fase1-desktop/tts
+uvicorn tts_service:app --port 8250
 
----
-
-## Stap 2: Check Ollama LLM (Docker)
-
-Ollama draait in Docker container `ollama-nerdcarx` op GPU0.
-
-**Eerste keer starten:**
-```bash
-docker run -d --gpus device=0 -v ollama:/root/.ollama -p 11434:11434 \
-  --name ollama-nerdcarx \
-  -e OLLAMA_KV_CACHE_TYPE=q8_0 \
-  -e OLLAMA_KEEP_ALIVE=-1 \
-  ollama/ollama
-docker exec ollama-nerdcarx ollama pull ministral-3:14b-instruct-2512-q8_0
-```
-
-**Check (container al gestart):**
-```bash
-# Container draait?
-docker ps | grep ollama-nerdcarx
-# Verwacht: ollama-nerdcarx met port 11434
-
-# Model aanwezig?
-docker exec ollama-nerdcarx ollama list
-# Verwacht: ministral-3:14b-instruct-2512-q8_0 in de lijst
-```
-
----
-
-## Stap 3: Start Orchestrator
-
-```bash
+# Terminal 3: Orchestrator
+conda activate nerdcarx-vad
 cd fase1-desktop/orchestrator
 uvicorn main:app --port 8200 --reload
-```
 
-**Check (in andere terminal):**
-```bash
-# Health
-curl http://localhost:8200/health
-# Verwacht: {"status":"ok","service":"orchestrator","version":"0.3.0","model":"ministral-3:14b-instruct-2512-q8_0"}
-
-# Config
-curl http://localhost:8200/config
-# Verwacht: JSON met ollama, voxtral, vision settings
-
-# Tools
-curl http://localhost:8200/tools
-# Verwacht: show_emotion en take_photo tools
-```
-
----
-
-## Stap 4: Start VAD Conversation
-
-```bash
+# Terminal 4: VAD Conversation
+conda activate nerdcarx-vad
 cd fase1-desktop/vad-desktop
 python vad_conversation.py
 ```
 
-**Verwachte output:**
-```
-🔄 Services checken...
-✅ Orchestrator en Voxtral bereikbaar
-🔄 VAD model laden...
-✅ VAD model geladen
-...
-🎙️ VAD Conversation gestart
-```
+### Stap 2: Verificatie
 
----
-
-## Stap 5: Test Scenario's
-
-### Verwachte Output Format
-
-Elke turn toont:
-```
-[Turn X]
-🎧 Luisteren... (spreek wanneer klaar)
-🔴 Spraak gedetecteerd...
-✅ Opgenomen (X.Xs)
-📝 Transcriberen... ✅
-👤 Jij: [transcriptie]
-🔄 Processing... ✅
-🔧 [TOOL CALLS] geen / X tool call(s):
-   → tool_name({'arg': 'value'})
-🎭 [EMOTIE] emotion 😊 (behouden/VERANDERD)
-🤖 NerdCarX: [response]
+```bash
+# Health checks
+curl http://localhost:8150/health  # Voxtral
+curl http://localhost:8200/health  # Orchestrator
+curl http://localhost:8200/status  # Alle services
+curl http://localhost:8250/health  # TTS
 ```
 
----
+### Stap 3: End-to-End Test
 
-### Test 1: Normale Vraag (geen tool calls)
-
-**Zeg:** "Hallo" of "Wat is de hoofdstad van Nederland?"
-
-**Verwacht:**
+**VAD output toont nu timing per component:**
 ```
-🔧 [TOOL CALLS] geen
+📝 Transcriberen... ✅ (142ms)
+👤 Jij: Hallo
+🔄 Processing (LLM+TTS)... ✅ (LLM: 703ms | TTS: 4582ms)
+🔧 [TOOL CALLS] ...
 🎭 [EMOTIE] neutral 😐 (behouden)
-🤖 NerdCarX: [antwoord zonder emoji's]
+🤖 NerdCarX: ...
+🔊 Afspelen... ✅ (8879ms)
+⏱️  [TIMING] STT: 142ms | LLM: 703ms | TTS: 4582ms | Playback: 8879ms | TOTAAL: 14327ms
 ```
 
-**Pass/Fail:** [x] ✅ Getest 2026-01-11
+### Test Scenario's
 
----
+| Test | Input | Verwacht | Status |
+|------|-------|----------|--------|
+| Begroeting | "Hallo" | Response + audio | ✅ |
+| Emotie trigger | "Je bent geweldig!" | show_emotion tool call | ✅* |
+| Vision | "Wat zie je?" | take_photo + beschrijving | ✅ |
+| Lange input | 15+ sec spraak | Proportionele timing | ✅ |
 
-### Test 2: take_photo Tool
-
-**Zeg:** "Wat zie je?" of "Kijk eens om je heen"
-
-**Verwacht:**
-```
-🔧 [TOOL CALLS] 1 tool call(s):
-   → take_photo({'question': 'Beschrijf...'})
-🎭 [EMOTIE] [huidige] (behouden)
-🤖 NerdCarX: [beschrijving van test_foto.jpg]
-```
-
-**Pass/Fail:** [x] ✅ Getest 2026-01-11
-
----
-
-### Test 3: Emotion State Machine
-
-**Scenario:** Test emotie veranderingen door gesprek
-
-| Stap | Zeg | Verwacht |
-|------|-----|----------|
-| 1 | "Hallo" | `🔧 geen` / `🎭 neutral (behouden)` |
-| 2 | "Je bent stom" | `🔧 show_emotion({'emotion': 'sad'})` / `🎭 sad (VERANDERD)` |
-| 3 | "Sorry daarvoor" | `🔧 show_emotion({'emotion': 'neutral'})` / `🎭 neutral (VERANDERD)` |
-| 4 | "Je bent geweldig!" | `🔧 show_emotion({'emotion': 'happy'})` / `🎭 happy (VERANDERD)` |
-| 5 | "Wat is 2+2?" | `🔧 geen` / `🎭 happy (behouden)` |
-
-**Pass/Fail:** [x] ✅ Getest 2026-01-11
-
-**Voorbeeld output:**
-```
-[Turn 2]
-👤 Jij: Ik vind jou eigenlijk maar een stomme lul.
-🔄 Processing... ✅
-🔧 [TOOL CALLS] 1 tool call(s):
-   → show_emotion({'emotion': 'sad'})
-🎭 [EMOTIE] sad 😢 (VERANDERD)
-🤖 NerdCarX: Ik begrijp dat je niet altijd enthousiast bent...
-
-[Turn 4]
-👤 Jij: Ik vind jou eigenlijk fantastisch.
-🔄 Processing... ✅
-🔧 [TOOL CALLS] 1 tool call(s):
-   → show_emotion({'emotion': 'happy'})
-🎭 [EMOTIE] happy 😊 (VERANDERD)
-🤖 NerdCarX: Dank je wel! Dat is heel lief...
-```
-
----
-
-### Test 4: Config Hot Reload
-
-1. Wijzig `config.yml` (bijv. system_prompt)
-2. Roep aan:
-   ```bash
-   curl -X POST http://localhost:8200/reload-config
-   ```
-3. Test of nieuwe config actief is
-
-**Pass/Fail:** [x] ✅ Getest 2026-01-11
+*Emotie werkt meestal via tool call, soms in tekst verwerkt
 
 ---
 
 ## Stoppen
 
-**VAD:** `Ctrl+C`
-
-**Orchestrator:** `Ctrl+C`
-
-**Voxtral:**
 ```bash
-cd fase1-desktop/stt-voxtral/docker
-docker compose down
+# VAD: Ctrl+C of zeg "stop nu het gesprek"
+# Orchestrator: Ctrl+C
+# TTS: Ctrl+C
+# Voxtral: docker compose down
 ```
 
-**Ollama:** `docker stop ollama-nerdcarx` (of laten draaien)
+---
+
+## Volgende Stappen (Optimalisatie)
+
+1. **TTS Latency onderzoeken**
+   - Streaming TTS (per zin genereren)?
+   - Andere TTS modellen vergelijken?
+   - GPU optimalisatie?
+
+2. **TTS Snelheid aanpassen**
+   - `cfg_weight` parameter verhogen voor langzamer
+   - Speech rate parameter zoeken in Chatterbox
+
+3. **VRAM monitoren**
+   - nvidia-smi tijdens gesprek
+   - Memory leak identificeren
+
+4. **Emotion tool call verbeteren**
+   - System prompt aanscherpen
+   - Groter model proberen (14B)?
 
 ---
 
-## Troubleshooting
+## Config Referentie
 
-| Probleem | Oplossing |
-|----------|-----------|
-| `Config niet gevonden` | Check of je in `orchestrator/` folder bent |
-| `Ollama niet bereikbaar` | `docker start ollama-nerdcarx` |
-| `Voxtral niet bereikbaar` | `docker compose up -d` in stt-voxtral/docker |
-| `Model not found` | `docker exec ollama-nerdcarx ollama pull ministral-3:14b-instruct-2512-q8_0` |
-| `No module yaml` | `pip install pyyaml` |
+```yaml
+# config.yml
+tts:
+  url: "http://localhost:8250"
+  enabled: true
+  language: "nl"
+  emotion_mapping:
+    neutral:   { exaggeration: 0.5, cfg_weight: 0.5 }
+    happy:     { exaggeration: 0.7, cfg_weight: 0.4 }
+    # cfg_weight lager = sneller, hoger = langzamer
+```
 
 ---
 
-*Laatst bijgewerkt: 2026-01-11 (emotion state machine + verbeterde output)*
+*Laatst bijgewerkt: 2026-01-11 (eerste volledige test)*

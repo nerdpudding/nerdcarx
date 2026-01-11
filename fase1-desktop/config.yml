@@ -105,3 +105,32 @@ emotions:
     - bored      # 😑 verveeld
     - proud      # 😤 trots
     - worried    # 😟 bezorgd
+
+# === TTS (Chatterbox Multilingual) ===
+# Text-to-Speech service voor Nederlandse spraaksynthese
+#
+tts:
+  url: "http://localhost:8250"
+  enabled: true  # Zet op false om TTS over te slaan
+  language: "nl"
+  # voice_reference: "tts/voice_reference.wav"  # Optioneel: custom stem
+
+  # Emotie → TTS parameter mapping
+  # exaggeration: emotie intensiteit (0.25-2.0, default 0.5)
+  # cfg_weight: pacing (0.2-1.0, lager = langzamer)
+  emotion_mapping:
+    neutral:   { exaggeration: 0.5, cfg_weight: 0.5 }
+    happy:     { exaggeration: 0.7, cfg_weight: 0.4 }
+    excited:   { exaggeration: 0.9, cfg_weight: 0.3 }
+    sad:       { exaggeration: 0.6, cfg_weight: 0.5 }
+    angry:     { exaggeration: 0.8, cfg_weight: 0.4 }
+    surprised: { exaggeration: 0.8, cfg_weight: 0.4 }
+    curious:   { exaggeration: 0.6, cfg_weight: 0.5 }
+    confused:  { exaggeration: 0.5, cfg_weight: 0.5 }
+    thinking:  { exaggeration: 0.4, cfg_weight: 0.6 }
+    shy:       { exaggeration: 0.4, cfg_weight: 0.5 }
+    love:      { exaggeration: 0.7, cfg_weight: 0.4 }
+    tired:     { exaggeration: 0.3, cfg_weight: 0.6 }
+    bored:     { exaggeration: 0.3, cfg_weight: 0.6 }
+    proud:     { exaggeration: 0.7, cfg_weight: 0.4 }
+    worried:   { exaggeration: 0.5, cfg_weight: 0.5 }

@@ -1,12 +1,12 @@
 # Fase 1: Desktop Compleet
 
-**Status:** Actief - basis flow werkt, TTS nog te doen
+**Status:** ✅ Alle onderdelen geïmplementeerd
 **Doel:** Volledig werkende desktop demo met spraak-naar-spraak loop
 
 ## Huidige Stand (2026-01-11)
 
 ```
-[Desktop Mic] → [VAD] → [Voxtral STT] → [Orchestrator] → [Ministral LLM] → response
+[Desktop Mic] → [VAD] → [Voxtral STT] → [Orchestrator] → [Ministral LLM] → [TTS] → audio
                                               ↓
                                     + Vision (take_photo tool)
                                     + Emoties (show_emotion tool)
@@ -15,7 +15,8 @@
 
 **Wat werkt:** ✅ Alle tests geslaagd
 - STT via Voxtral (Docker op GPU1)
-- LLM via Ministral 14B Q8 (Ollama op GPU0) - ~20GB VRAM, past met speling
+- LLM via Ministral 8B/14B (Ollama op GPU0)
+- TTS via Chatterbox Multilingual (conda env: nerdcarx-tts)
 - Orchestrator met centrale config + hot reload
 - VAD hands-free gesprekken
 - Vision via `take_photo` function call
@@ -23,11 +24,17 @@
 
 **Performance notities:**
 - Vision latency ~5-10s (dubbele LLM call: tool detection + image analyse)
+- TTS latency ~1-2s per zin
 - Q8 quantization duidelijk beter dan Q4 voor response kwaliteit
 - Cold start na container restart kan eerste request vertragen
 
 **Wat nog moet:**
-- TTS integratie (volgende stap)
+- ~~End-to-end testing met VAD audio playback~~ ✅ Getest (2026-01-11)
+
+**Bekende issues (zie TESTPLAN.md):**
+- TTS latency: 5-20 sec (bottleneck)
+- TTS spreeksnelheid: te snel
+- VRAM: ~18.3GB, lijkt toe te nemen
 
 ---
 
@@ -40,8 +47,12 @@ fase1-desktop/
 ├── stt-voxtral/            # Speech-to-Text
 │   ├── docker/             # Docker setup
 │   └── README.md
-├── llm-ministral/          # LLM setup (TODO: README)
-├── tts/                    # Text-to-Speech (TODO)
+├── llm-ministral/          # LLM setup
+│   └── README.md
+├── tts/                    # Text-to-Speech (Chatterbox)
+│   ├── README.md
+│   ├── tts_service.py      # FastAPI service (port 8250)
+│   └── test_chatterbox.py  # Test script
 ├── orchestrator/           # FastAPI orchestrator
 │   └── main.py
 └── vad-desktop/            # VAD hands-free testing
@@ -55,9 +66,9 @@ fase1-desktop/
 | Onderdeel | Folder | Status | Beschrijving |
 |-----------|--------|--------|--------------|
 | STT | [stt-voxtral/](./stt-voxtral/) | ✅ Werkt | Docker container op GPU1 |
-| LLM | [llm-ministral/](./llm-ministral/) | ✅ Werkt | Ministral 14B Q8 via Ollama |
-| TTS | [tts/](./tts/) | 🔜 Volgende | Onderzoek opties |
-| Orchestrator | [orchestrator/](./orchestrator/) | ✅ Werkt | FastAPI + config.yml |
+| LLM | [llm-ministral/](./llm-ministral/) | ✅ Werkt | Ministral 8B/14B via Ollama |
+| TTS | [tts/](./tts/) | ✅ Werkt | Chatterbox Multilingual (port 8250) |
+| Orchestrator | [orchestrator/](./orchestrator/) | ✅ Werkt | FastAPI + config.yml + TTS integratie |
 | VAD | [vad-desktop/](./vad-desktop/) | ✅ Werkt | Hands-free gesprekken |
 
 ---
@@ -96,48 +107,61 @@ docker compose up -d
 # Terminal 2: Ollama LLM (GPU0)
 ollama serve
 # In andere terminal:
-ollama pull ministral-3:14b-instruct-2512-q8_0
+ollama pull ministral-3:8b  # of ministral-3:14b-instruct-2512-q8_0
 
-# Terminal 3: Orchestrator
+# Terminal 3: TTS Service (aparte conda env!)
+conda activate nerdcarx-tts
+cd fase1-desktop/tts
+uvicorn tts_service:app --port 8250
+
+# Terminal 4: Orchestrator
+conda activate nerdcarx-vad
 cd fase1-desktop/orchestrator
-pip install pyyaml  # indien nodig
 uvicorn main:app --port 8200 --reload
 
-# Terminal 4: VAD Conversation
+# Terminal 5: VAD Conversation
 cd fase1-desktop/vad-desktop
 python vad_conversation.py
 ```
 
 **Test endpoints:**
 ```bash
-curl http://localhost:8200/health
-curl http://localhost:8200/config
-curl http://localhost:8200/tools
+curl http://localhost:8200/health   # Orchestrator
+curl http://localhost:8200/status   # Alle services
+curl http://localhost:8250/health   # TTS
 ```
 
 ---
 
 ## Volgende Stappen
 
-### 1. TTS Integratie
+### 1. End-to-end Testing ✅
 
-**Opties te onderzoeken:**
-| Optie | Voordelen | Nadelen |
-|-------|-----------|---------|
-| Piper | Snel, offline, meerdere talen | Minder expressief |
-| Coqui XTTS | Nederlands, expressief | Meer VRAM |
-| Bark | Zeer expressief | Traag, veel VRAM |
-| Kokoro | Snel, goede kwaliteit | Nieuwe optie |
+- [x] VAD audio playback integreren
+- [x] Volledige loop testen: spraak → STT → LLM → TTS → audio
+- [x] Timing per component toegevoegd
 
-**Criteria:**
-- Nederlands ondersteund
-- Lage latency (<500ms)
-- GPU0 of GPU1 (afhankelijk van VRAM)
+### 2. Fase 1 Afronden
 
-### 2. Na TTS
+Fase 1 is technisch compleet en getest. Bekende issues:
+- TTS latency 5-20 sec (Q006)
+- TTS te snel (Q007)
+- VRAM memory concern (Q008)
 
-Na TTS integratie is Fase 1 afgerond. Dan:
-- → Fase 2: Refactor + Dockerizen
+**Optioneel (later):**
+- Voice reference voor Chatterbox
+- Fine-tune emotie → exaggeration mapping
+- TTS latency optimalisatie
+
+**→ Klaar voor Fase 2: Refactor + Dockerizen**
+
+### TTS Keuze (afgerond)
+
+**Gekozen:** Chatterbox Multilingual (D008)
+- Nederlands native support
+- Emotie via `exaggeration` parameter
+- ~1-2s latency per zin
+- Aparte conda env: `nerdcarx-tts`
 
 ---
 
@@ -153,6 +177,11 @@ Na TTS integratie is Fase 1 afgerond. Dan:
 | 2026-01-11 | Repo reorganisatie (D006) |
 | 2026-01-11 | Alle tests geslaagd (spraak, vision, emoties) |
 | 2026-01-11 | Q8 model bevestigd: 20GB VRAM, goede kwaliteit |
+| 2026-01-11 | TTS: Chatterbox Multilingual gekozen (D008) |
+| 2026-01-11 | TTS service geïmplementeerd (port 8250) |
+| 2026-01-11 | Orchestrator TTS integratie compleet |
+| 2026-01-11 | VAD audio playback + timing per component |
+| 2026-01-11 | End-to-end test compleet (zie TESTPLAN.md) |
 
 ---
 

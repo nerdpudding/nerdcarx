@@ -12,6 +12,7 @@ Gebruik:
 import base64
 import json
 import re
+import time
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional, List
@@ -50,6 +51,12 @@ AVAILABLE_EMOTIONS = config["emotions"]["available"]
 DEFAULT_EMOTION = config["emotions"]["default"]
 AUTO_RESET_MINUTES = config["emotions"]["auto_reset_minutes"]
 VISION_MOCK_IMAGE_PATH = Path(__file__).parent.parent / config["vision"]["mock_image_path"]
+
+# TTS settings
+TTS_CONFIG = config.get("tts", {})
+TTS_URL = TTS_CONFIG.get("url", "http://localhost:8250")
+TTS_ENABLED = TTS_CONFIG.get("enabled", True)
+TTS_EMOTION_MAPPING = TTS_CONFIG.get("emotion_mapping", {})
 
 
 app = FastAPI(
@@ -124,6 +131,8 @@ class ChatResponse(BaseModel):
     conversation_id: Optional[str] = None
     function_calls: Optional[List[FunctionCall]] = None
     emotion: Optional[dict] = None  # {"current": "angry", "changed": true, "auto_reset": false}
+    audio_base64: Optional[str] = None  # TTS audio als base64
+    timing_ms: Optional[dict] = None  # {"llm": 1234, "tts": 567}
 
 
 # In-memory conversation storage
@@ -180,6 +189,37 @@ def update_emotion_state(conversation_id: str, emotion: str) -> None:
         emotion_states[conversation_id]["emotion"] = emotion
         emotion_states[conversation_id]["last_updated"] = datetime.now()
         emotion_states[conversation_id]["last_interaction"] = datetime.now()
+
+
+# === TTS SERVICE ===
+async def synthesize_speech(text: str, emotion: str, client: httpx.AsyncClient) -> Optional[str]:
+    """
+    Roep TTS service aan om tekst naar spraak te converteren.
+    Returns: base64 encoded audio, of None bij fout.
+    """
+    if not TTS_ENABLED or not text.strip():
+        return None
+
+    try:
+        payload = {
+            "text": text,
+            "emotion": emotion
+        }
+
+        resp = await client.post(
+            f"{TTS_URL}/synthesize",
+            json=payload,
+            timeout=30.0
+        )
+        resp.raise_for_status()
+
+        # Audio bytes naar base64
+        audio_bytes = resp.content
+        audio_base64 = base64.b64encode(audio_bytes).decode("utf-8")
+        return audio_base64
+    except Exception as e:
+        print(f"TTS error: {e}")
+        return None
 
 
 # === TEXT-BASED TOOL CALL PARSING ===
@@ -381,6 +421,17 @@ async def status():
     except Exception:
         results["voxtral"] = "unreachable"
 
+    # Check TTS
+    if TTS_ENABLED:
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                resp = await client.get(f"{TTS_URL}/health")
+                results["tts"] = "ok" if resp.status_code == 200 else "error"
+        except Exception:
+            results["tts"] = "unreachable"
+    else:
+        results["tts"] = "disabled"
+
     return results
 
 
@@ -407,6 +458,10 @@ async def get_config():
             "available": AVAILABLE_EMOTIONS,
             "default": DEFAULT_EMOTION,
             "auto_reset_minutes": AUTO_RESET_MINUTES
+        },
+        "tts": {
+            "url": TTS_URL,
+            "enabled": TTS_ENABLED
         }
     }
 
@@ -553,6 +608,9 @@ async def conversation(request: ChatRequest):
 
     try:
         async with httpx.AsyncClient(timeout=120.0) as client:
+            # === TIMING: LLM START ===
+            t_llm_start = time.perf_counter()
+
             resp = await client.post(f"{OLLAMA_URL}/api/chat", json=payload)
             resp.raise_for_status()
             result = resp.json()
@@ -576,6 +634,10 @@ async def conversation(request: ChatRequest):
                 for fc in function_calls:
                     await execute_tool(fc.name, fc.arguments, client)
 
+            # === TIMING: LLM END ===
+            t_llm_end = time.perf_counter()
+            timing_llm_ms = (t_llm_end - t_llm_start) * 1000
+
             # Check of emotie is veranderd via function call
             emotion_changed = False
             new_emotion = current_emotion
@@ -592,6 +654,16 @@ async def conversation(request: ChatRequest):
             # Check of er een show_emotion tool call was
             had_emotion_tool_call = any(fc.name == "show_emotion" for fc in function_calls)
 
+            # === TIMING: TTS START ===
+            t_tts_start = time.perf_counter()
+
+            # TTS: genereer spraak van schone tekst (geen function calls!)
+            audio_base64 = await synthesize_speech(content, new_emotion, client)
+
+            # === TIMING: TTS END ===
+            t_tts_end = time.perf_counter()
+            timing_tts_ms = (t_tts_end - t_tts_start) * 1000
+
             return ChatResponse(
                 response=content,
                 model=OLLAMA_MODEL,
@@ -602,6 +674,11 @@ async def conversation(request: ChatRequest):
                     "changed": emotion_changed,
                     "auto_reset": was_auto_reset,
                     "had_tool_call": had_emotion_tool_call
+                },
+                audio_base64=audio_base64,
+                timing_ms={
+                    "llm": round(timing_llm_ms),
+                    "tts": round(timing_tts_ms)
                 }
             )
     except httpx.ConnectError:
@@ -639,6 +716,7 @@ async def reload_config():
     global config, OLLAMA_MODEL, OLLAMA_TEMPERATURE, OLLAMA_TOP_P
     global OLLAMA_REPEAT_PENALTY, OLLAMA_NUM_CTX, DEFAULT_SYSTEM_PROMPT
     global AVAILABLE_EMOTIONS, DEFAULT_EMOTION, AUTO_RESET_MINUTES, VISION_MOCK_IMAGE_PATH
+    global TTS_CONFIG, TTS_URL, TTS_ENABLED, TTS_EMOTION_MAPPING
 
     try:
         config = load_config()
@@ -654,7 +732,13 @@ async def reload_config():
         AUTO_RESET_MINUTES = config["emotions"]["auto_reset_minutes"]
         VISION_MOCK_IMAGE_PATH = Path(__file__).parent.parent / config["vision"]["mock_image_path"]
 
-        return {"status": "ok", "message": "Config herladen", "model": OLLAMA_MODEL}
+        # TTS settings
+        TTS_CONFIG = config.get("tts", {})
+        TTS_URL = TTS_CONFIG.get("url", "http://localhost:8250")
+        TTS_ENABLED = TTS_CONFIG.get("enabled", True)
+        TTS_EMOTION_MAPPING = TTS_CONFIG.get("emotion_mapping", {})
+
+        return {"status": "ok", "message": "Config herladen", "model": OLLAMA_MODEL, "tts_enabled": TTS_ENABLED}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Config reload failed: {str(e)}")
 

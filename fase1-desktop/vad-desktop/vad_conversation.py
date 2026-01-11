@@ -14,17 +14,23 @@ Gebruik:
 """
 
 import argparse
+import base64
 import io
 import sys
+import time
 import uuid
 import wave
 from collections import deque
+from pathlib import Path
 
 import numpy as np
 import pyaudio
 import requests
 import torch
 from silero_vad import load_silero_vad
+
+# Audio response bestand (wordt elke keer overschreven)
+RESPONSE_WAV = Path(__file__).parent / "last_response.wav"
 
 # Configuratie
 SAMPLE_RATE = 16000
@@ -41,6 +47,7 @@ PRE_SPEECH_BUFFER = 0.3
 # Service endpoints
 VOXTRAL_URL = "http://localhost:8150"
 ORCHESTRATOR_URL = "http://localhost:8200"
+TTS_URL = "http://localhost:8250"
 
 # Stop commando (expliciet - moet exact dit zeggen)
 STOP_PHRASE = "stop nu het gesprek"
@@ -117,7 +124,7 @@ def chat_via_orchestrator(message: str, conversation_id: str) -> tuple:
     """
     Stuur bericht naar Orchestrator → Ministral LLM.
     Alle configuratie (prompt, model, etc.) wordt door de orchestrator geregeld.
-    Returns: (response_text, function_calls, emotion_info)
+    Returns: (response_text, function_calls, emotion_info, audio_base64)
     """
     payload = {
         "message": message,
@@ -132,7 +139,51 @@ def chat_via_orchestrator(message: str, conversation_id: str) -> tuple:
     response.raise_for_status()
     result = response.json()
     emotion_info = result.get('emotion', {"current": "neutral", "changed": False, "auto_reset": False})
-    return result['response'], result.get('function_calls', []), emotion_info
+    audio_base64 = result.get('audio_base64')
+    timing_ms = result.get('timing_ms', {})
+    return result['response'], result.get('function_calls', []), emotion_info, audio_base64, timing_ms
+
+
+def play_audio(audio_base64: str) -> bool:
+    """
+    Speel audio af via speakers.
+    Slaat audio op als last_response.wav (overschrijft vorige).
+    Returns: True als afspelen gelukt is.
+    """
+    if not audio_base64:
+        return False
+
+    try:
+        # Decode base64 naar WAV bytes
+        audio_bytes = base64.b64decode(audio_base64)
+
+        # Sla op als last_response.wav (overschrijft)
+        RESPONSE_WAV.write_bytes(audio_bytes)
+
+        # Lees WAV parameters
+        with wave.open(io.BytesIO(audio_bytes), 'rb') as wf:
+            channels = wf.getnchannels()
+            sample_width = wf.getsampwidth()
+            frame_rate = wf.getframerate()
+            frames = wf.readframes(wf.getnframes())
+
+        # Speel af via PyAudio
+        p = pyaudio.PyAudio()
+        stream = p.open(
+            format=p.get_format_from_width(sample_width),
+            channels=channels,
+            rate=frame_rate,
+            output=True
+        )
+        stream.write(frames)
+        stream.stop_stream()
+        stream.close()
+        p.terminate()
+        return True
+
+    except Exception as e:
+        print(f"⚠️ Audio playback fout: {e}")
+        return False
 
 
 def check_services() -> dict:
@@ -152,6 +203,13 @@ def check_services() -> dict:
         results['voxtral'] = resp.status_code == 200
     except:
         results['voxtral'] = False
+
+    # Check TTS
+    try:
+        resp = requests.get(f"{TTS_URL}/health", timeout=5)
+        results['tts'] = resp.status_code == 200
+    except:
+        results['tts'] = False
 
     return results
 
@@ -224,7 +282,16 @@ def main():
         print("   Start met: docker compose up -d")
         sys.exit(1)
 
+    if not services['tts']:
+        print("⚠️ TTS niet bereikbaar op", TTS_URL)
+        print("   Start met: conda activate nerdcarx-tts && uvicorn tts_service:app --port 8250")
+        print("   (Gesprek werkt wel, maar zonder audio)")
+
     print("✅ Orchestrator en Voxtral bereikbaar")
+    if services['tts']:
+        print("✅ TTS bereikbaar (audio aan)")
+    else:
+        print("⚠️ TTS niet bereikbaar (audio uit)")
 
     # Herlaad orchestrator config en toon actieve configuratie
     try:
@@ -276,8 +343,9 @@ def main():
 
     print(f"\n🎙️ VAD Conversation gestart")
     print("=" * 60)
-    print("Flow: [Mic] → [VAD] → [Voxtral STT] → [Orchestrator] → [Ministral]")
+    print("Flow: [Mic] → [VAD] → [STT] → [LLM] → [TTS] → [Speaker]")
     print(f"Conversation ID: {conversation_id}")
+    print(f"TTS: {'🔊 Aan' if services['tts'] else '🔇 Uit'}")
     print("Vision: Via 'take_photo' tool (vraag: 'wat zie je?')")
     print("=" * 60)
     print("Instructies:")
@@ -305,11 +373,17 @@ def main():
             wav_bytes = audio_to_wav_bytes(audio_data, SAMPLE_RATE)
             print(f"✅ Opgenomen ({duration:.1f}s)")
 
+            # === TIMING START ===
+            timings = {}
+
             # Transcribe via Voxtral
             print("📝 Transcriberen...", end="", flush=True)
             try:
+                t_stt_start = time.perf_counter()
                 user_text = transcribe_audio(wav_bytes)
-                print(" ✅")
+                t_stt_end = time.perf_counter()
+                timings['stt'] = (t_stt_end - t_stt_start) * 1000
+                print(f" ✅ ({timings['stt']:.0f}ms)")
                 print(f"👤 Jij: {user_text}")
 
                 # Check stop command
@@ -317,13 +391,18 @@ def main():
                     print("\n👋 Stop commando gedetecteerd. Tot ziens!")
                     break
 
-                # Get AI response via Orchestrator → Ministral
-                print("🔄 Processing...", end="", flush=True)
-                ai_response, function_calls, emotion_info = chat_via_orchestrator(
+                # Get AI response via Orchestrator → Ministral + TTS
+                print("🔄 Processing (LLM+TTS)...", end="", flush=True)
+                t_proc_start = time.perf_counter()
+                ai_response, function_calls, emotion_info, audio_base64, server_timing = chat_via_orchestrator(
                     user_text,
                     conversation_id
                 )
-                print(" ✅")
+                t_proc_end = time.perf_counter()
+                timings['llm_tts_total'] = (t_proc_end - t_proc_start) * 1000
+                timings['llm'] = server_timing.get('llm', 0)
+                timings['tts'] = server_timing.get('tts', 0)
+                print(f" ✅ (LLM: {timings['llm']}ms | TTS: {timings['tts']}ms)")
 
                 # Emoji mapping voor emoties
                 emotion_emojis = {
@@ -360,6 +439,25 @@ def main():
                 print(f"🎭 [EMOTIE] {emotion} {emoji} ({status})")
 
                 print(f"🤖 NerdCarX: {ai_response}")
+
+                # Speel audio response af
+                if audio_base64:
+                    print("🔊 Afspelen...", end="", flush=True)
+                    t_play_start = time.perf_counter()
+                    if play_audio(audio_base64):
+                        t_play_end = time.perf_counter()
+                        timings['playback'] = (t_play_end - t_play_start) * 1000
+                        print(f" ✅ ({timings['playback']:.0f}ms)")
+                    else:
+                        print(" ❌")
+                        timings['playback'] = 0
+                else:
+                    print("⚠️ Geen audio ontvangen (TTS uit?)")
+                    timings['playback'] = 0
+
+                # === TIMING SUMMARY ===
+                total = timings.get('stt', 0) + timings.get('llm_tts_total', 0) + timings.get('playback', 0)
+                print(f"⏱️  [TIMING] STT: {timings.get('stt', 0):.0f}ms | LLM: {timings.get('llm', 0)}ms | TTS: {timings.get('tts', 0)}ms | Playback: {timings.get('playback', 0):.0f}ms | TOTAAL: {total:.0f}ms")
 
             except requests.exceptions.ConnectionError as e:
                 print(f"❌ Verbindingsfout: {e}")
