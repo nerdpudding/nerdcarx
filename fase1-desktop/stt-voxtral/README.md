@@ -199,4 +199,4 @@ Poort:    8150 (extern) → 8000 (intern)
 
 ---
 
-[← Terug naar Fase 1](../FASE1-PLAN.md)
+[← Terug naar Fase 1](../PLAN.md)

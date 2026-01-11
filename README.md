@@ -136,7 +136,6 @@ nerdcarx/
 │   └── PLAN.md
 │
 ├── original_Picar-X-REFERENCE/        # PiCar-X documentatie (referentie)
-├── original_chatterbox-REFERENCE/     # Chatterbox TTS repo (archived)
 └── original_fish-speech-REFERENCE/    # Fish Audio TTS repo + model checkpoints
 ```
 

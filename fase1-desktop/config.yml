@@ -22,7 +22,7 @@
 #
 ollama:
   url: "http://localhost:11434"
-  model: "ministral-3:8b"
+  model: "ministral-3:14b"
   temperature: 0.15
   top_p: 1.0
   repeat_penalty: 1.0
@@ -49,7 +49,7 @@ orchestrator:
 # vad_conversation.py en andere clients gebruiken deze via de orchestrator.
 #
 system_prompt: |
-  Je bent NerdCarX, een slimme robotauto gemaakt door NerdCarX.
+  Je bent NerdCarX, een slimme robotauto gemaakt door Ralph.
   Je antwoordt in het Nederlands, natuurlijk en behulpzaam.
   Je mag persoonlijkheid tonen maar blijf informatief.
 
@@ -108,7 +108,7 @@ emotions:
 
 # === TTS (Fish Audio S1-mini) ===
 # Text-to-Speech service voor Nederlandse spraaksynthese
-# Vervangt Chatterbox vanwege betere latency (~1.2s vs 5-20s)
+# Latency: ~1.2s per zin
 #
 # Docker starten:
 #   cd original_fish-speech-REFERENCE

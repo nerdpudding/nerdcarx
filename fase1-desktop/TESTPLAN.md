@@ -1,60 +1,36 @@
-# Testplan: TTS Integratie
+# Testplan: End-to-End Pipeline
 
 **Datum:** 2026-01-11
-**Status:** ✅ Getest - Werkend met bekende issues
+**Status:** ✅ Getest - Werkend
 
 ---
 
 ## Test Resultaten (2026-01-11)
 
-### Timing Analyse
+### Huidige Performance (Fish Audio S1-mini)
 
-| Turn | Audio In | STT | LLM | TTS | Playback | Totaal |
-|------|----------|-----|-----|-----|----------|--------|
-| 1 | 2.7s | 144ms | 232ms | 0ms* | 0ms | 399ms |
-| 2 | 2.8s | 142ms | 703ms | 4582ms | 8879ms | 14.3s |
-| 3 | 15.4s | 753ms | 1233ms | 19610ms | 38823ms | 60.5s |
-| 4 | 12.2s | 656ms | 9625ms | 12978ms | 25049ms | 48.3s |
-| 5 | 3.5s | 223ms | 5038ms | 10075ms | 19697ms | 35.1s |
-| 6 | 15.4s | 745ms | 1246ms | 10868ms | 20817ms | 33.7s |
-
-*Turn 1: Lege response van LLM, geen TTS audio gegenereerd
-
-### Gemiddelde Latency (excl. outliers)
-
-| Component | Tijd | Percentage |
-|-----------|------|------------|
-| STT (Voxtral) | ~200-750ms | ~5% |
-| LLM (Ministral 8B) | ~700-1300ms | ~10% |
-| **TTS (Chatterbox)** | **5-20 sec** | **~40%** |
-| Playback | ~2x TTS tijd | ~45% |
-
-**Conclusie:** TTS is de grootste bottleneck.
+| Component | Latency | Opmerking |
+|-----------|---------|-----------|
+| STT (Voxtral) | 150-750ms | Uitstekend |
+| LLM (Ministral 8B) | 700-1300ms | Acceptabel |
+| TTS (Fish Audio) | ~1.2s | Goed (was 5-20s met Chatterbox) |
+| Vision | +3-4s | Dubbele LLM call |
 
 ### Bekende Issues
 
 | Issue | Beschrijving | Prioriteit |
 |-------|--------------|------------|
-| TTS Latency | 5-20 seconden per response | Hoog |
-| TTS Spreeksnelheid | Audio klinkt te snel | Medium |
-| Emotion in tekst | LLM schrijft soms emotie in tekst ipv tool call | Laag |
-| Lege response | Turn 1 had lege response, geen TTS | Laag |
-| VRAM gebruik | ~18.3GB op 4090, lijkt toe te nemen | Onderzoeken |
+| TTS accent | Klinkt soms Engelserig via orchestrator | Medium |
+| STT taal | Voxtral negeert soms `language: 'nl'` | Laag |
+| Playback interrupt | Geen mogelijkheid om af te breken | Wens |
 
 ### Observaties
 
 1. **STT (Voxtral)**: Uitstekend! Zeer snel, ~150ms voor korte audio
-2. **LLM (Ministral 8B)**: Acceptabel, soms spikes (Turn 4: 9.6s)
-3. **TTS (Chatterbox)**: Bottleneck - lange generatietijd
+2. **LLM (Ministral 8B)**: Acceptabel, soms spikes bij lange context
+3. **TTS (Fish Audio)**: ~4x sneller dan Chatterbox
 4. **Vision (take_photo)**: Werkt, voegt ~3-4s toe aan LLM tijd
 5. **Emotion tool calls**: Werkt meestal, soms in tekst verwerkt
-
-### VRAM Notitie
-
-- GPU0 (RTX 4090): ~18.3GB in gebruik
-- Lijkt geleidelijk toe te nemen tijdens gesprek
-- TTS zou geen context moeten bijhouden - mogelijk memory leak?
-- **TODO:** Monitoren en onderzoeken
 
 ---
 
@@ -62,12 +38,12 @@
 
 ### Vereisten
 
-| Service | Port | Conda Env |
-|---------|------|-----------|
-| Voxtral STT | 8150 | (Docker) |
-| Ollama LLM | 11434 | - |
-| Orchestrator | 8200 | nerdcarx-vad |
-| TTS Service | 8250 | nerdcarx-tts |
+| Service | Port | Setup |
+|---------|------|-------|
+| Voxtral STT | 8150 | Docker (GPU1) |
+| Ollama LLM | 11434 | Docker/native (GPU0) |
+| Fish Audio TTS | 8250 | Docker (GPU0) |
+| Orchestrator | 8200 | Conda nerdcarx-vad |
 
 ### Stap 1: Start Services
 
@@ -76,10 +52,14 @@
 cd fase1-desktop/stt-voxtral/docker
 docker compose up -d
 
-# Terminal 2: TTS
-conda activate nerdcarx-tts
-cd fase1-desktop/tts
-uvicorn tts_service:app --port 8250
+# Terminal 2: Fish Audio TTS (Docker)
+cd original_fish-speech-REFERENCE
+docker run -d --gpus device=0 --name fish-tts \
+    -v $(pwd)/checkpoints:/app/checkpoints \
+    -v $(pwd)/references:/app/references \
+    -p 8250:8080 --entrypoint uv \
+    fishaudio/fish-speech \
+    run tools/api_server.py --listen 0.0.0.0:8080 --compile
 
 # Terminal 3: Orchestrator
 conda activate nerdcarx-vad
@@ -96,10 +76,10 @@ python vad_conversation.py
 
 ```bash
 # Health checks
-curl http://localhost:8150/health  # Voxtral
-curl http://localhost:8200/health  # Orchestrator
-curl http://localhost:8200/status  # Alle services
-curl http://localhost:8250/health  # TTS
+curl http://localhost:8150/health     # Voxtral
+curl http://localhost:8200/health     # Orchestrator
+curl http://localhost:8200/status     # Alle services
+curl http://localhost:8250/v1/health  # Fish Audio TTS
 ```
 
 ### Stap 3: End-to-End Test
@@ -134,30 +114,24 @@ curl http://localhost:8250/health  # TTS
 ```bash
 # VAD: Ctrl+C of zeg "stop nu het gesprek"
 # Orchestrator: Ctrl+C
-# TTS: Ctrl+C
+# Fish Audio TTS: docker stop fish-tts
 # Voxtral: docker compose down
 ```
 
 ---
 
-## Volgende Stappen (Optimalisatie)
+## Open Punten
 
-1. **TTS Latency onderzoeken**
-   - Streaming TTS (per zin genereren)?
-   - Andere TTS modellen vergelijken?
-   - GPU optimalisatie?
+1. **TTS accent via orchestrator**
+   - Parameters vergelijken: standalone test vs orchestrator
+   - Kortere zinnen genereren in LLM prompt?
 
-2. **TTS Snelheid aanpassen**
-   - `cfg_weight` parameter verhogen voor langzamer
-   - Speech rate parameter zoeken in Chatterbox
-
-3. **VRAM monitoren**
-   - nvidia-smi tijdens gesprek
-   - Memory leak identificeren
-
-4. **Emotion tool call verbeteren**
+2. **Emotion tool call verbeteren**
    - System prompt aanscherpen
    - Groter model proberen (14B)?
+
+3. **Playback interrupt**
+   - Mogelijkheid om audio af te breken tijdens afspelen
 
 ---
 
@@ -165,16 +139,15 @@ curl http://localhost:8250/health  # TTS
 
 ```yaml
 # config.yml
-tts:
+tts:  # Fish Audio S1-mini
   url: "http://localhost:8250"
   enabled: true
-  language: "nl"
-  emotion_mapping:
-    neutral:   { exaggeration: 0.5, cfg_weight: 0.5 }
-    happy:     { exaggeration: 0.7, cfg_weight: 0.4 }
-    # cfg_weight lager = sneller, hoger = langzamer
+  reference_id: "dutch2"
+  temperature: 0.2   # ultra_consistent
+  top_p: 0.5
+  format: "wav"
 ```
 
 ---
 
-*Laatst bijgewerkt: 2026-01-11 (eerste volledige test)*
+*Laatst bijgewerkt: 2026-01-11 (Fish Audio S1-mini)*

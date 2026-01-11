@@ -1,8 +1,8 @@
-# Fish Audio S1-mini - Test Setup
+# Fish Audio S1-mini - Setup
 
-**Doel:** Evalueren of Fish Audio S1-mini een sneller alternatief is voor Chatterbox
+**Status:** ✅ Actief (vervangt Chatterbox - zie D009)
 **Model:** fishaudio/openaudio-s1-mini (0.5B parameters)
-**Verwachte latency:** 200-500ms (met --compile)
+**Latency:** ~1.2s per zin (met --compile)
 
 ---
 
