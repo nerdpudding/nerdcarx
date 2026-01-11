@@ -84,6 +84,7 @@ models/
 !assets/**/*.png
 !assets/**/*.gif
 !**/vad-desktop/*.jpg
+!**/vad-desktop/*.jpeg
 !**/vad-desktop/*.png
 
 # Logs
