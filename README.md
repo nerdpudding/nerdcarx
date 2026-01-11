@@ -213,9 +213,18 @@ python vad_conversation.py
 - TTS latency: ~1.2s per zin (Fish Audio)
 - Emotion response: instant (tool call parsing)
 
-**Volgende stap:** End-to-end testing, daarna Fase 2 (Refactor)
+**Openstaande verbeteringen:** Zie [`fase1-desktop/TODO.md`](fase1-desktop/TODO.md)
 
-**Laatste beslissing:** [D009 - TTS Fish Audio](DECISIONS.md) (2026-01-11)
+De TODO bevat uitgebreide plannen voor:
+1. TTS klinkt soms Engelserig → text normalisatie (afkortingen, getallen)
+2. Temperature/top_p tuning → stap-voor-stap test aanpak
+3. Langere reference audio → "NL torture test" met alle lastige klanken
+4. Pseudo-streaming → per zin genereren voor snellere response (Pi ↔ Desktop)
+5. Playback interrupt → spatiebalk onderbreking
+
+**Volgende stap:** Implementeer TODO items, daarna Fase 2 (Refactor)
+
+**Laatste update:** 2026-01-11 - TODO uitgebreid met TTS verbeteringen en pseudo-streaming
 
 > Zie [`DECISIONS.md`](DECISIONS.md) voor alle beslissingen en rationale.
 
