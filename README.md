@@ -35,7 +35,7 @@ Alle projectbeslissingen staan op **één plek**: [`DECISIONS.md`](DECISIONS.md)
 | `DECISIONS.md` | Alle beslissingen | Bij elke keuze |
 | `README.md` | Overzicht + huidige fase | Bij fasewissel |
 | `archive/` | Afgeronde documenten (read-only) | Nooit |
-| `FASE*-PLAN.md` | Checklist per fase | Tijdens die fase |
+| `*/PLAN.md` | Checklist per fase | Tijdens die fase |
 | `research/` | Losse notities | Vrij |
 
 ### Waarom zo?
@@ -66,9 +66,9 @@ Een interactieve AI-gestuurde robotauto bouwen die:
                     Desktop Server                              Pi 5 Robot
               ┌────────────────────────┐              ┌────────────────────────┐
               │  Orchestrator (FastAPI)│◄────────────►│  Wake Word (Porcupine) │
-              │  STT (Voxtral/Whisper) │   WebSocket  │  Audio Capture (Mic)   │
-              │  LLM (Ministral 8B)    │     LAN      │  Camera (Vision)       │
-              │  TTS (Coqui/Piper)     │              │  OLED (Emoties)        │
+              │  STT (Voxtral)         │   WebSocket  │  Audio Capture (Mic)   │
+              │  LLM (Ministral 14B)   │     LAN      │  Camera (Vision)       │
+              │  TTS (nog te bepalen)  │              │  OLED (Emoties)        │
               └────────────────────────┘              │  Motors/Servo's        │
                       GPU Processing                  └────────────────────────┘
 ```
@@ -85,48 +85,53 @@ Een interactieve AI-gestuurde robotauto bouwen die:
 | Fase | Naam | Beschrijving | Status |
 |------|------|--------------|--------|
 | 0 | [Concept](archive/0.concept/) | Ontwerp en voorbereiding | Gearchiveerd |
-| 1 | [Desktop Audio Pipeline](1.fase1-desktop-audio/) | STT → LLM → TTS, vision, function calling | **Actief** |
-| 2 | [Function Calling](2.fase2-function-calling/) | OLED emoties + motor simulatie | Deels in Fase 1 |
-| 3 | [Pi Integratie](3.fase3-pi-integratie/) | Hardware verbinding met Pi 5 | Wacht op hardware |
-| 4 | [Vision](4.fase4-vision/) | Camera input en multimodale interactie | Deels in Fase 1 |
-| 5 | [Autonomie](5.fase5-autonomie/) | Idle behaviors, proactieve interactie | Gepland |
+| 1 | [Desktop Compleet](fase1-desktop/) | STT + LLM + Vision + Tools + TTS | **Actief** |
+| 2 | [Refactor + Docker](fase2-refactor/) | Code cleanup, dockerizen, SOLID/KISS | Gepland |
+| 3 | [Pi Integratie](fase3-pi/) | Hardware verbinding met Pi 5 | Wacht op hardware |
+| 4 | [Autonomie](fase4-autonomie/) | Idle behaviors, proactieve interactie | Gepland |
 
-> **Let op:** Vision en function calling zijn al basis geïmplementeerd in Fase 1.
-> Later verfijnen we dit in de oorspronkelijke fases.
+> **Fase 1** omvat alles wat nodig is voor een werkende desktop demo:
+> STT, LLM, Vision (via take_photo tool), Function Calling (emoties), en TTS.
 
 ## Repository Structuur
 
 ```
 nerdcarx/
 ├── README.md                          # Dit bestand
-├── DECISIONS.md                       # ⭐ Centrale beslissingen (bron van waarheid)
+├── DECISIONS.md                       # Centrale beslissingen (bron van waarheid)
 ├── .gitignore                         # Git ignore regels
 │
-├── archive/                           # 📁 Afgeronde documenten (read-only)
+├── archive/                           # Afgeronde documenten (read-only)
 │   ├── README.md                      # Uitleg archief
-│   └── 0.concept/                     # Origineel projectconcept
-│       └── picar-x-ai-companion-concept.md
+│   ├── 0.concept/                     # Origineel projectconcept
+│   └── old-fase-plans/                # Oude fase plannen (ter referentie)
 │
-├── 1.fase1-desktop-audio/             # Fase 1: Audio pipeline
-│   ├── FASE1-PLAN.md                  # Checklist en voortgang
-│   └── 1a-stt-voxtral/                # Subfase 1a
-│       ├── PLAN.md                    # Taken voor dit onderdeel
-│       └── research/                  # Onderzoeksnotities
+├── fase1-desktop/                     # Fase 1: Desktop Compleet
+│   ├── PLAN.md                        # Checklist en voortgang
+│   ├── config.yml                     # Centrale configuratie
+│   ├── stt-voxtral/                   # Speech-to-Text (Voxtral)
+│   │   ├── docker/
+│   │   └── README.md
+│   ├── llm-ministral/                 # LLM (Ministral via Ollama)
+│   │   └── README.md
+│   ├── tts/                           # Text-to-Speech (TODO)
+│   │   └── README.md
+│   ├── orchestrator/                  # FastAPI orchestrator
+│   │   └── README.md
+│   └── vad-desktop/                   # VAD hands-free testing
+│       └── README.md
 │
-├── 2.fase2-function-calling/          # Fase 2: Function calling + emoties
-│   └── FASE2-PLAN.md
+├── fase2-refactor/                    # Fase 2: Refactor + Docker
+│   └── PLAN.md
 │
-├── 3.fase3-pi-integratie/             # Fase 3: Pi hardware
-│   └── FASE3-PLAN.md
+├── fase3-pi/                          # Fase 3: Pi Integratie
+│   └── PLAN.md
 │
-├── 4.fase4-vision/                    # Fase 4: Camera/Vision
-│   └── FASE4-PLAN.md
+├── fase4-autonomie/                   # Fase 4: Autonome gedragingen
+│   └── PLAN.md
 │
-├── 5.fase5-autonomie/                 # Fase 5: Autonome gedragingen
-│   └── FASE5-PLAN.md
-│
-├── assets/                            # Gedeelde assets
-│   └── emotions/                      # OLED emotie PNG's (128x64, 1-bit)
+├── docs/                              # Documentatie
+│   └── plans/                         # Planning documenten
 │
 └── original_Picar-X-REFERENCE/        # PiCar-X documentatie (referentie)
 ```
@@ -134,21 +139,23 @@ nerdcarx/
 ## Quick Start
 
 ```bash
-# Zie 1.fase1-desktop-audio/FASE1-PLAN.md voor complete instructies
+# Zie fase1-desktop/PLAN.md voor complete instructies
 
-# Kort:
 # 1. Start Voxtral STT (GPU1)
-cd 1.fase1-desktop-audio/1a-stt-voxtral/docker && docker compose up -d
+cd fase1-desktop/stt-voxtral/docker && docker compose up -d
 
 # 2. Start Ollama LLM (GPU0)
-docker run -d --gpus device=0 -v ollama:/root/.ollama -p 11434:11434 \
-  --name ollama-nerdcarx -e OLLAMA_KV_CACHE_TYPE=q8_0 ollama/ollama
+# Zorg dat ministral-3:14b-instruct-2512-q8_0 gepulled is
+ollama serve  # of via docker
 
 # 3. Start Orchestrator
-cd 1.fase1-desktop-audio/1d-orchestrator && uvicorn main:app --port 8200
+cd fase1-desktop/orchestrator
+pip install pyyaml  # indien nodig
+uvicorn main:app --port 8200 --reload
 
 # 4. Start VAD Conversation
-cd 1.fase1-desktop-audio/1g-vad-desktop && python vad_conversation.py
+cd fase1-desktop/vad-desktop
+python vad_conversation.py
 ```
 
 ## Hardware Vereisten
@@ -172,18 +179,19 @@ cd 1.fase1-desktop-audio/1g-vad-desktop && python vad_conversation.py
 
 ## Status
 
-**Huidige fase:** 1 - Desktop Audio Pipeline (eerste sprint)
+**Huidige fase:** 1 - Desktop Compleet
 
 **Wat werkt:**
-- ✅ STT (Voxtral) - transcriptie
-- ✅ LLM (Ministral 14B) - responses
-- ✅ Vision - foto meesturen
-- ✅ Function calling - emoties
-- ✅ VAD - hands-free gesprekken
+- STT (Voxtral) - transcriptie via vLLM
+- LLM (Ministral 14B q8) - responses + function calling
+- Vision (take_photo tool) - foto analyse on-demand
+- Emoties (show_emotion tool) - OLED ready
+- VAD - hands-free gesprekken
+- Centrale config (config.yml)
 
-**Volgende stap:** TTS onderzoek
+**Volgende stap:** TTS onderzoek en integratie
 
-**Laatste beslissing:** [D005 - LLM keuze](DECISIONS.md) (2026-01-11)
+**Laatste beslissing:** [D006 - Fase Herindeling](DECISIONS.md) (2026-01-11)
 
 > Zie [`DECISIONS.md`](DECISIONS.md) voor alle beslissingen en rationale.
 

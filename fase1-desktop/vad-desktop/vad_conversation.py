@@ -5,22 +5,20 @@ Hands-free heen-en-weer gesprek met conversation history.
 
 Flow: [Mic] → [VAD] → [Voxtral STT] → [Orchestrator] → [Ministral LLM] → response
 
+Configuratie (prompts, model, etc.) staat centraal in: ../config.yml
+De orchestrator regelt alles - deze client stuurt alleen tekst.
+
 Gebruik:
     conda activate nerdcarx-vad
     python vad_conversation.py
-    python vad_conversation.py --system-prompt "Je bent een grappige robot."
 """
 
 import argparse
-import base64
 import io
-import os
 import sys
 import uuid
 import wave
 from collections import deque
-from datetime import datetime
-from pathlib import Path
 
 import numpy as np
 import pyaudio
@@ -46,22 +44,6 @@ ORCHESTRATOR_URL = "http://localhost:8200"
 
 # Stop commando (expliciet - moet exact dit zeggen)
 STOP_PHRASE = "stop nu het gesprek"
-
-# Default system prompt
-DEFAULT_SYSTEM_PROMPT = """Je bent NerdCarX, een vriendelijke en behulpzame robot assistent.
-Je geeft korte, duidelijke antwoorden in het Nederlands.
-Je bent nieuwsgierig en hebt een licht humoristische persoonlijkheid."""
-
-# Default test image (robot's view)
-DEFAULT_IMAGE_PATH = Path(__file__).parent / "test_foto.jpg"
-
-
-def load_image_base64(image_path: Path) -> str | None:
-    """Laad een image als base64 string."""
-    if not image_path or not image_path.exists():
-        return None
-    with open(image_path, "rb") as f:
-        return base64.b64encode(f.read()).decode("utf-8")
 
 
 def list_audio_devices():
@@ -128,9 +110,10 @@ def transcribe_audio(audio_bytes: bytes) -> str:
     return response.json()['text']
 
 
-def chat_via_orchestrator(message: str, conversation_id: str, system_prompt: str = None, image_base64: str = None) -> tuple:
+def chat_via_orchestrator(message: str, conversation_id: str) -> tuple:
     """
     Stuur bericht naar Orchestrator → Ministral LLM.
+    Alle configuratie (prompt, model, etc.) wordt door de orchestrator geregeld.
     Returns: (response_text, function_calls)
     """
     payload = {
@@ -138,16 +121,10 @@ def chat_via_orchestrator(message: str, conversation_id: str, system_prompt: str
         "conversation_id": conversation_id
     }
 
-    if system_prompt:
-        payload["system_prompt"] = system_prompt
-
-    if image_base64:
-        payload["image_base64"] = image_base64
-
     response = requests.post(
         f"{ORCHESTRATOR_URL}/conversation",
         json=payload,
-        timeout=60
+        timeout=120  # Langere timeout voor vision tool calls
     )
     response.raise_for_status()
     result = response.json()
@@ -224,26 +201,10 @@ def record_speech(stream, vad_model, silence_chunks, min_speech_chunks, pre_buff
 
 def main():
     parser = argparse.ArgumentParser(description='VAD Conversation via Orchestrator')
-    parser.add_argument('--system-prompt', type=str, default=DEFAULT_SYSTEM_PROMPT,
-                        help='Custom system prompt voor de AI')
     parser.add_argument('--silence-duration', type=float, default=SILENCE_DURATION,
                         help=f'Stilte duur voor einde detectie (default: {SILENCE_DURATION}s)')
     parser.add_argument('--device', type=int, help='Audio device ID (skip selectie)')
-    parser.add_argument('--image', type=str, default=str(DEFAULT_IMAGE_PATH),
-                        help='Pad naar image (robot camera view)')
-    parser.add_argument('--no-image', action='store_true',
-                        help='Geen image meesturen')
     args = parser.parse_args()
-
-    # Laad image (robot's view)
-    image_base64 = None
-    if not args.no_image:
-        image_path = Path(args.image)
-        if image_path.exists():
-            image_base64 = load_image_base64(image_path)
-            print(f"📷 Image geladen: {image_path.name}")
-        else:
-            print(f"⚠️  Image niet gevonden: {image_path}")
 
     # Check services
     print("🔄 Services checken...")
@@ -301,7 +262,7 @@ def main():
     print("=" * 60)
     print("Flow: [Mic] → [VAD] → [Voxtral STT] → [Orchestrator] → [Ministral]")
     print(f"Conversation ID: {conversation_id}")
-    print(f"Vision: {'📷 Enabled' if image_base64 else '❌ Disabled'}")
+    print("Vision: Via 'take_photo' tool (vraag: 'wat zie je?')")
     print("=" * 60)
     print("Instructies:")
     print("  • Spreek wanneer je klaar bent")
@@ -338,20 +299,21 @@ def main():
                     print("\n👋 Stop commando gedetecteerd. Tot ziens!")
                     break
 
-                # Get AI response via Orchestrator → Ministral (met image)
-                print("🤔 Denken (Ministral)..." + (" 📷" if image_base64 else ""))
+                # Get AI response via Orchestrator → Ministral
+                print("🤔 Denken (Ministral)...")
                 ai_response, function_calls = chat_via_orchestrator(
                     user_text,
-                    conversation_id,
-                    args.system_prompt if turn_count == 1 else None,  # System prompt alleen eerste keer
-                    image_base64  # Robot's view
+                    conversation_id
                 )
 
-                # Toon function calls (emoties)
+                # Toon function calls
                 if function_calls:
                     for fc in function_calls:
-                        if fc.get('name') == 'show_emotion':
-                            emotion = fc.get('arguments', {}).get('emotion', 'neutral')
+                        name = fc.get('name', '')
+                        args = fc.get('arguments', {})
+
+                        if name == 'show_emotion':
+                            emotion = args.get('emotion', 'neutral')
                             emotion_emojis = {
                                 "happy": "😊", "sad": "😢", "angry": "😠",
                                 "surprised": "😲", "neutral": "😐", "curious": "🤔",
@@ -359,6 +321,10 @@ def main():
                             }
                             emoji = emotion_emojis.get(emotion, "🤖")
                             print(f"🎭 [EMOTIE] {emotion} {emoji}")
+
+                        elif name == 'take_photo':
+                            question = args.get('question', '')
+                            print(f"📷 [FOTO] Analyseren: {question}")
 
                 print(f"🤖 NerdCarX: {ai_response}")
 

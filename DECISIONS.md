@@ -57,7 +57,7 @@
 - Faster-Whisper v3 Large - Afgewezen: minder noise robust
 - FP8 quantization - Afgewezen: werkt niet met vLLM
 
-**Referentie:** [Research document](1.fase1-desktop-audio/1a-stt-voxtral/research/research.md)
+**Referentie:** [Research document](fase1-desktop/stt-voxtral/research/research.md)
 
 ---
 
@@ -105,22 +105,64 @@ Orchestrator is pure FastAPI, geen LangChain/LangGraph. Beantwoordt Q004.
 
 ---
 
-### D005: LLM - Ministral 14B (experimenteel)
+### D005: LLM - Ministral 14B Instruct Q8
 
 **Datum:** 2026-01-11
-**Fase:** 1b
-**Status:** Experimenteel
+**Fase:** 1
+**Status:** Actief
 
 **Besluit:**
-Ministral 14B via Ollama voor LLM + Vision + Function calling.
+Ministral 14B Instruct Q8 via Ollama voor LLM + Vision + Function calling.
 
-**Huidige setup:** `ministral-3:14b` op GPU0 (RTX 4090)
+**Huidige setup:** `ministral-3:14b-instruct-2512-q8_0` op GPU0 (RTX 4090)
+
+**Officiële parameters:**
+| Parameter | Waarde | Reden |
+|-----------|--------|-------|
+| Temperature | 0.15 | Officieel - hoger = hallucinaties |
+| Top_p | 1.0 | NIET verlagen |
+| Repeat_penalty | 1.0 | Officieel |
 
 **Aandachtspunten:**
 - Model heeft sterke ingebakken persoonlijkheid ("Le Chat")
-- Prompt tuning nodig voor gewenst gedrag
-- Vision werkt, maar output is soms te speels
-- Mogelijk andere model variant of meer prompt werk nodig
+- Zakelijke system prompt in centrale `config.yml`
+- Vision werkt via `take_photo` function call
+
+---
+
+### D006: Fase Herindeling
+
+**Datum:** 2026-01-11
+**Fase:** 1
+**Status:** Actief
+
+**Besluit:**
+Fases herzien van feature-based naar milestone-based:
+
+| Fase | Oud | Nieuw |
+|------|-----|-------|
+| 1 | Desktop Audio Pipeline | Desktop Compleet (STT + LLM + Vision + Tools + TTS) |
+| 2 | Function Calling | Refactor + Docker |
+| 3 | Pi Integratie | Pi Integratie (ongewijzigd) |
+| 4 | Vision | ~~Verwijderd~~ (al in Fase 1) |
+| 5 | Autonomie | → Fase 4: Autonomie |
+
+**Rationale:**
+1. Function calling en Vision waren al in Fase 1 geïmplementeerd als "verkenning"
+2. Feature-based fases creëerden overlap en verwarring
+3. Milestone-based is duidelijker: eerst alles werkend, dan opschonen, dan hardware
+
+**Folder wijzigingen:**
+- `1.fase1-desktop-audio/` → `fase1-desktop/`
+- `2.fase2-function-calling/` → `archive/old-fase-plans/`
+- `3.fase3-pi-integratie/` → `fase3-pi/`
+- `4.fase4-vision/` → `archive/old-fase-plans/`
+- `5.fase5-autonomie/` → `fase4-autonomie/`
+
+**Subfolder prefixes verwijderd:**
+- `1a-stt-voxtral/` → `stt-voxtral/`
+- `1d-orchestrator/` → `orchestrator/`
+- `1g-vad-desktop/` → `vad-desktop/`
 
 ---
 
@@ -145,7 +187,8 @@ Ministral 14B via Ollama voor LLM + Vision + Function calling.
 | D002 | STT keuze | 2026-01-10 | Actief |
 | D003 | Function calling locatie | 2026-01-10 | Actief |
 | D004 | Orchestrator framework | 2026-01-11 | Actief |
-| D005 | LLM keuze | 2026-01-11 | Experimenteel |
+| D005 | LLM keuze | 2026-01-11 | Actief |
+| D006 | Fase herindeling | 2026-01-11 | Actief |
 
 ---
 

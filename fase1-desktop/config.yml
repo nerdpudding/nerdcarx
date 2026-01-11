@@ -1,0 +1,77 @@
+# NerdCarX Fase 1 - Centrale Configuratie
+# =========================================
+#
+# Dit is de centrale plek voor alle configuratie.
+# De orchestrator laadt dit bestand en alle clients gebruiken de orchestrator.
+#
+# Na wijzigingen: herstart de orchestrator (uvicorn)
+
+# === OLLAMA / MINISTRAL LLM ===
+# Model: ministral-3:14b-instruct-2512-q8_0 (15GB)
+#
+# Officiële recommended parameters voor Ministral 3 Instruct:
+# - Temperature: 0.15 (NIET hoger - veroorzaakt hallucinaties)
+# - Top_p: 1.0 (NIET verlagen)
+# - Repeat_penalty: 1.0
+#
+ollama:
+  url: "http://localhost:11434"
+  model: "ministral-3:14b-instruct-2512-q8_0"
+  temperature: 0.15
+  top_p: 1.0
+  repeat_penalty: 1.0
+  num_ctx: 65536  # 64k context - verlaag naar 32768 of 16384 als VRAM tekort
+
+# === VOXTRAL STT ===
+# Model: Voxtral Mini 3B via vLLM
+#
+# Officiële recommended parameters voor transcriptie:
+# - Temperature: 0.0 (greedy decoding - vereist voor accuracy)
+#
+voxtral:
+  url: "http://localhost:8150"
+  model: "mistralai/Voxtral-Mini-3B-2507"
+  temperature: 0.0
+
+# === ORCHESTRATOR ===
+orchestrator:
+  host: "0.0.0.0"
+  port: 8200
+
+# === SYSTEM PROMPT ===
+# Dit is de enige plek waar de system prompt staat.
+# vad_conversation.py en andere clients gebruiken deze via de orchestrator.
+#
+system_prompt: |
+  Je bent de AI van NerdCarX - een echte, fysieke robotauto.
+
+  STIJL:
+  - Antwoord zakelijk en feitelijk in het Nederlands
+  - GEEN emoji's, GEEN grappen, GEEN roleplay
+  - Gewoon normale zinnen
+
+  TOOLS:
+  - show_emotion: Toon emotie op het OLED display. Gebruik alleen bij duidelijke emotionele context.
+  - take_photo: Maak een foto met de camera. Gebruik wanneer de gebruiker vraagt wat je ziet, je omgeving wil beschrijven, of iets visueel wil analyseren.
+
+# === VISION ===
+# Mock image voor desktop testing (geen camera beschikbaar)
+# Later vervangen door Pi camera endpoint
+#
+vision:
+  mock_image_path: "vad-desktop/test_foto.jpg"
+  # pi_camera_url: "http://pi5:8300/camera/snapshot"  # Voor later
+
+# === EMOTIES ===
+# Beschikbare emoties voor show_emotion tool
+#
+emotions:
+  - happy
+  - sad
+  - angry
+  - surprised
+  - neutral
+  - curious
+  - confused
+  - excited
+  - thinking
