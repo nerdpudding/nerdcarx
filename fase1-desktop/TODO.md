@@ -282,13 +282,13 @@ else:
 
 | Aspect | Status | Opmerking |
 |--------|--------|-----------|
-| Lengte | ✅ ~10s | Fish Audio adviseert 10-20s |
+| Lengte | ✅ ~10s | Fish Audio adviseert 10-30s |
 | Variatie | ⚠️ Beperkt | Geen vraagzin, cijfers, afkortingen |
 | Kwaliteit | ✅ Goed | ElevenLabs bron |
 
 ### Optioneel: "NL Torture Test" Reference
 
-Als NL uitspraak niet goed genoeg is, maak een uitgebreide reference (15-20 seconden) die alle lastige Nederlandse klanken bevat:
+Als NL uitspraak niet goed genoeg is, maak een uitgebreide reference (20-25 seconden) die alle lastige Nederlandse klanken bevat:
 
 **Voorbeeld tekst voor nieuwe reference:**
 ```
@@ -595,15 +595,23 @@ async def play_with_buffer(audio_stream, buffer_ms=200):
 
 Bij geavanceerde implementatie: start TTS-tasks **parallel** (async queue), maar speel audio altijd **in volgorde** af. Anders krijg je zinnen door elkaar!
 
+> **Let op:** Limiteer concurrency tot max 2-3 zinnen tegelijk, anders kun je je GPU onnodig laten thrashen. Dit is voor fase 2/3.
+
 ```python
 import asyncio
 
-async def parallel_tts_ordered_playback(sentences, client):
-    """TTS parallel starten, maar in volgorde afspelen."""
+async def parallel_tts_ordered_playback(sentences, client, max_concurrent=2):
+    """TTS parallel starten (gelimiteerd), maar in volgorde afspelen."""
 
-    # Start alle TTS tasks tegelijk
+    semaphore = asyncio.Semaphore(max_concurrent)
+
+    async def limited_tts(sentence):
+        async with semaphore:
+            return await synthesize_speech(sentence, emotion, client)
+
+    # Start alle TTS tasks (maar max 2-3 tegelijk actief)
     tasks = [
-        asyncio.create_task(synthesize_speech(s, emotion, client))
+        asyncio.create_task(limited_tts(s))
         for s in sentences
     ]
 
