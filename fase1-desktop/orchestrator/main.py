@@ -11,6 +11,8 @@ Gebruik:
 
 import base64
 import json
+import re
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional, List
 
@@ -44,7 +46,9 @@ OLLAMA_REPEAT_PENALTY = config["ollama"]["repeat_penalty"]
 OLLAMA_NUM_CTX = config["ollama"]["num_ctx"]
 VOXTRAL_URL = config["voxtral"]["url"]
 DEFAULT_SYSTEM_PROMPT = config["system_prompt"]
-AVAILABLE_EMOTIONS = config["emotions"]
+AVAILABLE_EMOTIONS = config["emotions"]["available"]
+DEFAULT_EMOTION = config["emotions"]["default"]
+AUTO_RESET_MINUTES = config["emotions"]["auto_reset_minutes"]
 VISION_MOCK_IMAGE_PATH = Path(__file__).parent.parent / config["vision"]["mock_image_path"]
 
 
@@ -119,10 +123,89 @@ class ChatResponse(BaseModel):
     model: str
     conversation_id: Optional[str] = None
     function_calls: Optional[List[FunctionCall]] = None
+    emotion: Optional[dict] = None  # {"current": "angry", "changed": true, "auto_reset": false}
 
 
 # In-memory conversation storage
 conversations: dict = {}
+
+# In-memory emotion state storage
+emotion_states: dict = {}
+
+
+# === EMOTION STATE MANAGEMENT ===
+class EmotionInfo(BaseModel):
+    """Emotie state info in response."""
+    current: str
+    changed: bool
+    auto_reset: bool = False
+
+
+def get_emotion_state(conversation_id: str) -> dict:
+    """Haal huidige emotie state op, met auto-reset check."""
+    if conversation_id not in emotion_states:
+        emotion_states[conversation_id] = {
+            "emotion": DEFAULT_EMOTION,
+            "last_updated": datetime.now(),
+            "last_interaction": datetime.now()
+        }
+        return emotion_states[conversation_id]
+
+    state = emotion_states[conversation_id]
+
+    # Check auto-reset
+    if datetime.now() - state["last_interaction"] > timedelta(minutes=AUTO_RESET_MINUTES):
+        if state["emotion"] != DEFAULT_EMOTION:
+            state["emotion"] = DEFAULT_EMOTION
+            state["last_updated"] = datetime.now()
+            state["auto_reset"] = True
+        else:
+            state["auto_reset"] = False
+    else:
+        state["auto_reset"] = False
+
+    state["last_interaction"] = datetime.now()
+    return state
+
+
+def update_emotion_state(conversation_id: str, emotion: str) -> None:
+    """Update emotie state."""
+    if conversation_id not in emotion_states:
+        emotion_states[conversation_id] = {
+            "emotion": emotion,
+            "last_updated": datetime.now(),
+            "last_interaction": datetime.now()
+        }
+    else:
+        emotion_states[conversation_id]["emotion"] = emotion
+        emotion_states[conversation_id]["last_updated"] = datetime.now()
+        emotion_states[conversation_id]["last_interaction"] = datetime.now()
+
+
+# === TEXT-BASED TOOL CALL PARSING ===
+def parse_text_tool_calls(content: str) -> tuple[str, list]:
+    """
+    Parse tool calls uit tekst content.
+    Mistral format: functionname[ARGS]{json}
+
+    Returns: (cleaned_content, list of FunctionCall)
+    """
+    # Pattern voor Mistral text-based tool calls: functionname[ARGS]{json}
+    pattern = r'(\w+)\[ARGS\](\{[^}]+\})'
+    matches = re.findall(pattern, content)
+
+    function_calls = []
+    for name, args_str in matches:
+        try:
+            args = json.loads(args_str)
+            function_calls.append(FunctionCall(name=name, arguments=args))
+        except json.JSONDecodeError:
+            continue
+
+    # Verwijder tool call tekst uit content
+    cleaned = re.sub(pattern, '', content).strip()
+
+    return cleaned, function_calls
 
 
 # === TOOL EXECUTIE ===
@@ -320,7 +403,11 @@ async def get_config():
             "mock_image_path": str(VISION_MOCK_IMAGE_PATH),
             "mock_image_exists": VISION_MOCK_IMAGE_PATH.exists()
         },
-        "emotions": AVAILABLE_EMOTIONS
+        "emotions": {
+            "available": AVAILABLE_EMOTIONS,
+            "default": DEFAULT_EMOTION,
+            "auto_reset_minutes": AUTO_RESET_MINUTES
+        }
     }
 
 
@@ -405,17 +492,26 @@ async def chat(request: ChatRequest):
 @app.post("/conversation", response_model=ChatResponse)
 async def conversation(request: ChatRequest):
     """
-    Chat met conversation history en function calling.
+    Chat met conversation history, function calling, en emotion state.
     """
     conv_id = request.conversation_id or "default"
     system_prompt = request.system_prompt or DEFAULT_SYSTEM_PROMPT
     temperature = request.temperature or OLLAMA_TEMPERATURE
     num_ctx = request.num_ctx or OLLAMA_NUM_CTX
 
+    # Haal emotion state op (inclusief auto-reset check)
+    emotion_state = get_emotion_state(conv_id)
+    current_emotion = emotion_state["emotion"]
+    was_auto_reset = emotion_state.get("auto_reset", False)
+
+    # Voeg huidige emotie toe aan system prompt
+    emotion_context = f"\n\nJe huidige emotionele staat is: {current_emotion}. Verander deze alleen als de interactie daar aanleiding toe geeft."
+    enhanced_system_prompt = system_prompt + emotion_context
+
     # Haal of maak conversation history
     if conv_id not in conversations:
         conversations[conv_id] = {
-            "system_prompt": system_prompt,
+            "system_prompt": system_prompt,  # Originele prompt opslaan
             "messages": []
         }
 
@@ -429,8 +525,8 @@ async def conversation(request: ChatRequest):
     # Voeg user message toe aan history (zonder image - te groot)
     conv["messages"].append({"role": "user", "content": request.message})
 
-    # Bouw messages array
-    messages = [{"role": "system", "content": conv["system_prompt"]}]
+    # Bouw messages array (met enhanced system prompt)
+    messages = [{"role": "system", "content": enhanced_system_prompt}]
     for i, msg in enumerate(conv["messages"]):
         if i == len(conv["messages"]) - 1 and msg["role"] == "user":
             messages.append(user_message)
@@ -467,19 +563,46 @@ async def conversation(request: ChatRequest):
 
             function_calls = []
 
+            # Check eerst Ollama native tool calls
             if tool_calls:
                 content, function_calls = await complete_tool_calls(
                     client, messages, tool_calls, options
                 )
+            else:
+                # Fallback: parse tool calls uit tekst (Mistral format)
+                content, function_calls = parse_text_tool_calls(content)
+
+                # Voer geparseerde tool calls uit
+                for fc in function_calls:
+                    await execute_tool(fc.name, fc.arguments, client)
+
+            # Check of emotie is veranderd via function call
+            emotion_changed = False
+            new_emotion = current_emotion
+            for fc in function_calls:
+                if fc.name == "show_emotion":
+                    new_emotion = fc.arguments.get("emotion", current_emotion)
+                    if new_emotion != current_emotion:
+                        update_emotion_state(conv_id, new_emotion)
+                        emotion_changed = True
 
             # Voeg response toe aan history
             conv["messages"].append({"role": "assistant", "content": content})
+
+            # Check of er een show_emotion tool call was
+            had_emotion_tool_call = any(fc.name == "show_emotion" for fc in function_calls)
 
             return ChatResponse(
                 response=content,
                 model=OLLAMA_MODEL,
                 conversation_id=conv_id,
-                function_calls=function_calls if function_calls else None
+                function_calls=function_calls if function_calls else None,
+                emotion={
+                    "current": new_emotion,
+                    "changed": emotion_changed,
+                    "auto_reset": was_auto_reset,
+                    "had_tool_call": had_emotion_tool_call
+                }
             )
     except httpx.ConnectError:
         raise HTTPException(status_code=503, detail="Ollama niet bereikbaar")
@@ -515,7 +638,7 @@ async def reload_config():
     """Herlaad config.yml (hot reload)."""
     global config, OLLAMA_MODEL, OLLAMA_TEMPERATURE, OLLAMA_TOP_P
     global OLLAMA_REPEAT_PENALTY, OLLAMA_NUM_CTX, DEFAULT_SYSTEM_PROMPT
-    global AVAILABLE_EMOTIONS, VISION_MOCK_IMAGE_PATH
+    global AVAILABLE_EMOTIONS, DEFAULT_EMOTION, AUTO_RESET_MINUTES, VISION_MOCK_IMAGE_PATH
 
     try:
         config = load_config()
@@ -526,7 +649,9 @@ async def reload_config():
         OLLAMA_REPEAT_PENALTY = config["ollama"]["repeat_penalty"]
         OLLAMA_NUM_CTX = config["ollama"]["num_ctx"]
         DEFAULT_SYSTEM_PROMPT = config["system_prompt"]
-        AVAILABLE_EMOTIONS = config["emotions"]
+        AVAILABLE_EMOTIONS = config["emotions"]["available"]
+        DEFAULT_EMOTION = config["emotions"]["default"]
+        AUTO_RESET_MINUTES = config["emotions"]["auto_reset_minutes"]
         VISION_MOCK_IMAGE_PATH = Path(__file__).parent.parent / config["vision"]["mock_image_path"]
 
         return {"status": "ok", "message": "Config herladen", "model": OLLAMA_MODEL}

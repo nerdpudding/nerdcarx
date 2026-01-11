@@ -128,6 +128,12 @@ Ministral 14B Instruct Q8 via Ollama voor LLM + Vision + Function calling.
 - Zakelijke system prompt in centrale `config.yml`
 - Vision werkt via `take_photo` function call
 
+**Bevindingen (2026-01-11):**
+- Q8 quantization is duidelijk beter dan Q4 voor response kwaliteit
+- VRAM gebruik: ~20GB op GPU0 (4090), past met speling
+- Vision latency: ~5-10s door dubbele LLM call (tool detection + image analyse)
+- Cold start na container restart kan eerste request vertragen
+
 ---
 
 ### D006: Fase Herindeling
@@ -166,16 +172,101 @@ Fases herzien van feature-based naar milestone-based:
 
 ---
 
+### D007: Emotion State Machine
+
+**Datum:** 2026-01-11
+**Fase:** 1
+**Status:** ✅ Geïmplementeerd en getest
+
+**Besluit:**
+Emoties als persistente state in de orchestrator. De robot simuleert emoties die beïnvloed worden door de gebruiker.
+
+**Kenmerken:**
+- In-memory state per conversation_id
+- Auto-reset naar neutral na 5 minuten inactiviteit
+- Huidige emotie meegegeven aan LLM in system prompt
+- Tool call alleen bij VERANDERING van emotie
+- Verbeterde VAD output met duidelijke status indicators
+
+**Problemen en oplossingen:**
+
+1. **Model schreef tool calls als tekst** (`show_emotion[ARGS]{...}`)
+   - Oplossing: Fallback parsing in orchestrator met regex
+   - Functie `parse_text_tool_calls()` haalt Mistral format uit tekst
+
+2. **Model maakte geen emotie tool calls bij negatieve input**
+   - Oorzaak: Vage prompt instructies + model safety training
+   - Oplossing: Expliciete prompt dat robot EIGEN emotie simuleert
+
+3. **Output onduidelijk over tool calls**
+   - Oplossing: Verbeterde VAD output met ✅ checkmarks en tool call details
+
+**VAD Output voorbeeld (werkend):**
+```
+[Turn 1]
+🎧 Luisteren... (spreek wanneer klaar)
+🔴 Spraak gedetecteerd...
+✅ Opgenomen (2.1s)
+📝 Transcriberen... ✅
+👤 Jij: Hallo.
+🔄 Processing... ✅
+🔧 [TOOL CALLS] geen
+🎭 [EMOTIE] neutral 😐 (behouden)
+🤖 NerdCarX: Hoi! Ik ben NerdCarX...
+
+[Turn 2]
+👤 Jij: Ik vind jou eigenlijk maar een stomme lul.
+🔄 Processing... ✅
+🔧 [TOOL CALLS] 1 tool call(s):
+   → show_emotion({'emotion': 'sad'})
+🎭 [EMOTIE] sad 😢 (VERANDERD)
+🤖 NerdCarX: Ik begrijp dat je niet altijd enthousiast bent...
+
+[Turn 3]
+👤 Jij: Sorry, dat meende ik niet.
+🔧 [TOOL CALLS] 1 tool call(s):
+   → show_emotion({'emotion': 'neutral'})
+🎭 [EMOTIE] neutral 😐 (VERANDERD)
+
+[Turn 4]
+👤 Jij: Ik vind jou eigenlijk fantastisch.
+🔧 [TOOL CALLS] 1 tool call(s):
+   → show_emotion({'emotion': 'happy'})
+🎭 [EMOTIE] happy 😊 (VERANDERD)
+```
+
+**Response format:**
+```json
+{
+  "emotion": {
+    "current": "happy",
+    "changed": true,
+    "auto_reset": false,
+    "had_tool_call": true
+  }
+}
+```
+
+**Bestanden gewijzigd:**
+- `orchestrator/main.py` - State management + text-based tool call parsing
+- `vad-desktop/vad_conversation.py` - Verbeterde debug output
+- `config.yml` - Emotie prompt instructies
+
+**Referentie:** [Plan](docs/plans/emotion_state_machine_2026-01-11.md)
+
+---
+
 ## Open vragen
 
 > Vragen die nog beantwoord moeten worden tijdens implementatie.
 
 | ID | Vraag | Verwacht in fase | Status |
 |----|-------|------------------|--------|
-| Q001 | Welke TTS? (Coqui, Piper, Bark, etc.) | 1c | Open |
-| Q002 | TTS op desktop of Pi? | 1c | Open |
+| Q001 | Welke TTS? (Coqui, Piper, Bark, Kokoro, etc.) | 1 | **Volgende stap** |
+| Q002 | TTS op desktop of Pi? | 1 | Open |
 | Q003 | Object detection op Pi? (YOLO) | Later | Open |
 | Q004 | Orchestrator framework? | 1d | ✅ Pure FastAPI |
+| Q005 | Context management strategy? (sliding window, truncation) | 2 | Open - intermittent 500 errors bij lange gesprekken met vision |
 
 ---
 
@@ -189,7 +280,8 @@ Fases herzien van feature-based naar milestone-based:
 | D004 | Orchestrator framework | 2026-01-11 | Actief |
 | D005 | LLM keuze | 2026-01-11 | Actief |
 | D006 | Fase herindeling | 2026-01-11 | Actief |
+| D007 | Emotion State Machine | 2026-01-11 | ✅ Geïmplementeerd |
 
 ---
 
-*Laatst bijgewerkt: 2026-01-11*
+*Laatst bijgewerkt: 2026-01-11 (emotion state machine volledig werkend)*

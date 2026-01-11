@@ -7,7 +7,13 @@
 # Na wijzigingen: herstart de orchestrator (uvicorn)
 
 # === OLLAMA / MINISTRAL LLM ===
-# Model: ministral-3:14b-instruct-2512-q8_0 (15GB)
+#
+# aangeraden Model: ministral-3:14b-instruct-2512-q8_0 (15GB)
+# alternatives:
+# ministral-3:14b (q4_k_m)         
+# ministral-3:8b-instruct-2512-q8_0
+# ministral-3:8b (q4_k_m)
+# mistral-large-3:675b-cloud  
 #
 # Officiële recommended parameters voor Ministral 3 Instruct:
 # - Temperature: 0.15 (NIET hoger - veroorzaakt hallucinaties)
@@ -16,7 +22,7 @@
 #
 ollama:
   url: "http://localhost:11434"
-  model: "ministral-3:14b-instruct-2512-q8_0"
+  model: "ministral-3:8b"
   temperature: 0.15
   top_p: 1.0
   repeat_penalty: 1.0
@@ -43,16 +49,31 @@ orchestrator:
 # vad_conversation.py en andere clients gebruiken deze via de orchestrator.
 #
 system_prompt: |
-  Je bent de AI van NerdCarX - een echte, fysieke robotauto.
+  Je bent NerdCarX, een slimme robotauto gemaakt door NerdCarX.
+  Je antwoordt in het Nederlands, natuurlijk en behulpzaam.
+  Je mag persoonlijkheid tonen maar blijf informatief.
 
-  STIJL:
-  - Antwoord zakelijk en feitelijk in het Nederlands
-  - GEEN emoji's, GEEN grappen, GEEN roleplay
-  - Gewoon normale zinnen
+  BELANGRIJK: Gebruik NOOIT emoji's of emoticons in je tekstantwoorden.
+  Geen 😊, geen 😄, geen :), geen enkele emoji of smiley.
+  Je emotie wordt apart getoond via de show_emotion tool.
 
-  TOOLS:
-  - show_emotion: Toon emotie op het OLED display. Gebruik alleen bij duidelijke emotionele context.
-  - take_photo: Maak een foto met de camera. Gebruik wanneer de gebruiker vraagt wat je ziet, je omgeving wil beschrijven, of iets visueel wil analyseren.
+  # TOOL INSTRUCTIES
+
+  ## show_emotion
+  Jij bent een robot met een emotionele staat. Je huidige emotie wordt getoond op je OLED display.
+  Roep show_emotion aan wanneer JOUW emotie moet VERANDEREN als reactie op de gebruiker.
+
+  Voorbeelden:
+  - Gebruiker beledigt je → jij wordt sad of worried
+  - Gebruiker is enthousiast → jij wordt happy of excited
+  - Gebruiker stelt een gewone vraag → geen verandering nodig
+
+  Roep de tool NIET aan als je emotie hetzelfde blijft. Alleen bij verandering.
+
+  ## take_photo
+  Maak een foto wanneer de gebruiker vraagt wat je ziet.
+
+  Maak altijd een echte tool call. Schrijf nooit tool namen als tekst.
 
 # === VISION ===
 # Mock image voor desktop testing (geen camera beschikbaar)
@@ -63,15 +84,24 @@ vision:
   # pi_camera_url: "http://pi5:8300/camera/snapshot"  # Voor later
 
 # === EMOTIES ===
-# Beschikbare emoties voor show_emotion tool
+# Emotion state machine configuratie
 #
 emotions:
-  - happy
-  - sad
-  - angry
-  - surprised
-  - neutral
-  - curious
-  - confused
-  - excited
-  - thinking
+  default: "neutral"        # Start emotie bij nieuwe conversatie
+  auto_reset_minutes: 5     # Reset naar default na X minuten inactiviteit
+  available:
+    - happy      # 😊 blij
+    - sad        # 😢 verdrietig
+    - angry      # 😠 boos
+    - surprised  # 😲 verrast
+    - neutral    # 😐 neutraal
+    - curious    # 🤔 nieuwsgierig
+    - confused   # 😕 verward
+    - excited    # 🤩 enthousiast
+    - thinking   # 💭 nadenkend
+    - shy        # 😳 verlegen
+    - love       # 😍 verliefd
+    - tired      # 😴 moe
+    - bored      # 😑 verveeld
+    - proud      # 😤 trots
+    - worried    # 😟 bezorgd

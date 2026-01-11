@@ -181,17 +181,26 @@ python vad_conversation.py
 
 **Huidige fase:** 1 - Desktop Compleet
 
-**Wat werkt:**
-- STT (Voxtral) - transcriptie via vLLM
-- LLM (Ministral 14B q8) - responses + function calling
+**Wat werkt:** ✅ Alle tests geslaagd (2026-01-11)
+- STT (Voxtral) - transcriptie via vLLM op GPU1
+- LLM (Ministral 8B/14B) - responses + function calling op GPU0
 - Vision (take_photo tool) - foto analyse on-demand
-- Emoties (show_emotion tool) - OLED ready
-- VAD - hands-free gesprekken
-- Centrale config (config.yml)
+- Emotion State Machine - persistente emotie state met 15 emoties
+- VAD - hands-free gesprekken met duidelijke debug output
+- Centrale config (config.yml) met hot reload
+
+**Emotion State Machine:**
+- Robot simuleert emoties die beïnvloed worden door gebruiker
+- Tool call alleen bij verandering (niet elke beurt)
+- Verbeterde VAD output met ✅ checkmarks en tool call details
+
+**Performance:**
+- Vision latency: ~5-10s (acceptabel voor demo)
+- Emotion response: instant (tool call parsing)
 
 **Volgende stap:** TTS onderzoek en integratie
 
-**Laatste beslissing:** [D006 - Fase Herindeling](DECISIONS.md) (2026-01-11)
+**Laatste beslissing:** [D007 - Emotion State Machine](DECISIONS.md) (2026-01-11)
 
 > Zie [`DECISIONS.md`](DECISIONS.md) voor alle beslissingen en rationale.
 

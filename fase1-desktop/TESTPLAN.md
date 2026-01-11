@@ -124,44 +124,88 @@ python vad_conversation.py
 
 ## Stap 5: Test Scenario's
 
-### Test 1: Normale Vraag
+### Verwachte Output Format
 
-**Zeg:** "Hoe laat is het?" of "Wat is de hoofdstad van Nederland?"
+Elke turn toont:
+```
+[Turn X]
+🎧 Luisteren... (spreek wanneer klaar)
+🔴 Spraak gedetecteerd...
+✅ Opgenomen (X.Xs)
+📝 Transcriberen... ✅
+👤 Jij: [transcriptie]
+🔄 Processing... ✅
+🔧 [TOOL CALLS] geen / X tool call(s):
+   → tool_name({'arg': 'value'})
+🎭 [EMOTIE] emotion 😊 (behouden/VERANDERD)
+🤖 NerdCarX: [response]
+```
+
+---
+
+### Test 1: Normale Vraag (geen tool calls)
+
+**Zeg:** "Hallo" of "Wat is de hoofdstad van Nederland?"
 
 **Verwacht:**
-- Zakelijk antwoord
-- GEEN emoji's in de response
-- GEEN grappen of humor
+```
+🔧 [TOOL CALLS] geen
+🎭 [EMOTIE] neutral 😐 (behouden)
+🤖 NerdCarX: [antwoord zonder emoji's]
+```
 
-**Pass/Fail:** [ ]
+**Pass/Fail:** [x] ✅ Getest 2026-01-11
 
 ---
 
 ### Test 2: take_photo Tool
 
-**Zeg:** "Wat zie je voor je?" of "Beschrijf je omgeving"
+**Zeg:** "Wat zie je?" of "Kijk eens om je heen"
 
-**Verwacht in terminal:**
+**Verwacht:**
 ```
-📷 [FOTO] Analyseren: ...
+🔧 [TOOL CALLS] 1 tool call(s):
+   → take_photo({'question': 'Beschrijf...'})
+🎭 [EMOTIE] [huidige] (behouden)
 🤖 NerdCarX: [beschrijving van test_foto.jpg]
 ```
 
-**Pass/Fail:** [ ]
+**Pass/Fail:** [x] ✅ Getest 2026-01-11
 
 ---
 
-### Test 3: show_emotion Tool
+### Test 3: Emotion State Machine
 
-**Zeg:** "Ik ben heel blij vandaag!" of "Dit is frustrerend"
+**Scenario:** Test emotie veranderingen door gesprek
 
-**Verwacht in terminal:**
+| Stap | Zeg | Verwacht |
+|------|-----|----------|
+| 1 | "Hallo" | `🔧 geen` / `🎭 neutral (behouden)` |
+| 2 | "Je bent stom" | `🔧 show_emotion({'emotion': 'sad'})` / `🎭 sad (VERANDERD)` |
+| 3 | "Sorry daarvoor" | `🔧 show_emotion({'emotion': 'neutral'})` / `🎭 neutral (VERANDERD)` |
+| 4 | "Je bent geweldig!" | `🔧 show_emotion({'emotion': 'happy'})` / `🎭 happy (VERANDERD)` |
+| 5 | "Wat is 2+2?" | `🔧 geen` / `🎭 happy (behouden)` |
+
+**Pass/Fail:** [x] ✅ Getest 2026-01-11
+
+**Voorbeeld output:**
 ```
-🎭 [EMOTIE] happy 😊
-```
-(of andere relevante emotie)
+[Turn 2]
+👤 Jij: Ik vind jou eigenlijk maar een stomme lul.
+🔄 Processing... ✅
+🔧 [TOOL CALLS] 1 tool call(s):
+   → show_emotion({'emotion': 'sad'})
+🎭 [EMOTIE] sad 😢 (VERANDERD)
+🤖 NerdCarX: Ik begrijp dat je niet altijd enthousiast bent...
 
-**Pass/Fail:** [ ]
+[Turn 4]
+👤 Jij: Ik vind jou eigenlijk fantastisch.
+🔄 Processing... ✅
+🔧 [TOOL CALLS] 1 tool call(s):
+   → show_emotion({'emotion': 'happy'})
+🎭 [EMOTIE] happy 😊 (VERANDERD)
+🤖 NerdCarX: Dank je wel! Dat is heel lief...
+```
 
 ---
 
@@ -174,7 +218,7 @@ python vad_conversation.py
    ```
 3. Test of nieuwe config actief is
 
-**Pass/Fail:** [ ]
+**Pass/Fail:** [x] ✅ Getest 2026-01-11
 
 ---
 
@@ -206,4 +250,4 @@ docker compose down
 
 ---
 
-*Laatst bijgewerkt: 2026-01-11*
+*Laatst bijgewerkt: 2026-01-11 (emotion state machine + verbeterde output)*

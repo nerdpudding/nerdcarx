@@ -13,13 +13,18 @@
                                     + Centrale config (config.yml)
 ```
 
-**Wat werkt:**
+**Wat werkt:** ✅ Alle tests geslaagd
 - STT via Voxtral (Docker op GPU1)
-- LLM via Ministral 14B Q8 (Ollama op GPU0)
-- Orchestrator met centrale config
+- LLM via Ministral 14B Q8 (Ollama op GPU0) - ~20GB VRAM, past met speling
+- Orchestrator met centrale config + hot reload
 - VAD hands-free gesprekken
 - Vision via `take_photo` function call
 - Emoties via `show_emotion` function call
+
+**Performance notities:**
+- Vision latency ~5-10s (dubbele LLM call: tool detection + image analyse)
+- Q8 quantization duidelijk beter dan Q4 voor response kwaliteit
+- Cold start na container restart kan eerste request vertragen
 
 **Wat nog moet:**
 - TTS integratie (volgende stap)
@@ -146,6 +151,8 @@ Na TTS integratie is Fase 1 afgerond. Dan:
 | 2026-01-11 | Vision als take_photo tool |
 | 2026-01-11 | Centrale config.yml |
 | 2026-01-11 | Repo reorganisatie (D006) |
+| 2026-01-11 | Alle tests geslaagd (spraak, vision, emoties) |
+| 2026-01-11 | Q8 model bevestigd: 20GB VRAM, goede kwaliteit |
 
 ---
 

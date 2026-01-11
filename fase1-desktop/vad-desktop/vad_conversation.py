@@ -98,7 +98,10 @@ def audio_to_wav_bytes(audio_data: np.ndarray, sample_rate: int) -> bytes:
 def transcribe_audio(audio_bytes: bytes) -> str:
     """Transcribeer audio via Voxtral STT."""
     files = {'file': ('audio.wav', audio_bytes, 'audio/wav')}
-    data = {'model': 'mistralai/Voxtral-Mini-3B-2507'}
+    data = {
+        'model': 'mistralai/Voxtral-Mini-3B-2507',
+        'language': 'nl'  # Force Dutch transcription
+    }
 
     response = requests.post(
         f"{VOXTRAL_URL}/v1/audio/transcriptions",
@@ -114,7 +117,7 @@ def chat_via_orchestrator(message: str, conversation_id: str) -> tuple:
     """
     Stuur bericht naar Orchestrator → Ministral LLM.
     Alle configuratie (prompt, model, etc.) wordt door de orchestrator geregeld.
-    Returns: (response_text, function_calls)
+    Returns: (response_text, function_calls, emotion_info)
     """
     payload = {
         "message": message,
@@ -128,7 +131,8 @@ def chat_via_orchestrator(message: str, conversation_id: str) -> tuple:
     )
     response.raise_for_status()
     result = response.json()
-    return result['response'], result.get('function_calls', [])
+    emotion_info = result.get('emotion', {"current": "neutral", "changed": False, "auto_reset": False})
+    return result['response'], result.get('function_calls', []), emotion_info
 
 
 def check_services() -> dict:
@@ -222,6 +226,18 @@ def main():
 
     print("✅ Orchestrator en Voxtral bereikbaar")
 
+    # Herlaad orchestrator config en toon actieve configuratie
+    try:
+        requests.post(f"{ORCHESTRATOR_URL}/reload-config", timeout=5)
+        config_resp = requests.get(f"{ORCHESTRATOR_URL}/config", timeout=5)
+        if config_resp.ok:
+            config = config_resp.json()
+            print(f"📋 Config herladen:")
+            print(f"   LLM: {config.get('ollama', {}).get('model', 'onbekend')}")
+            print(f"   STT: {config.get('voxtral', {}).get('model', 'onbekend')}")
+    except:
+        print("⚠️ Kon config niet herladen (niet kritiek)")
+
     # Laad VAD model
     print("🔄 VAD model laden...")
     vad_model = load_silero_vad()
@@ -287,11 +303,13 @@ def main():
             audio_data = np.frombuffer(b''.join(audio_buffer), dtype=np.int16)
             duration = len(audio_data) / SAMPLE_RATE
             wav_bytes = audio_to_wav_bytes(audio_data, SAMPLE_RATE)
+            print(f"✅ Opgenomen ({duration:.1f}s)")
 
             # Transcribe via Voxtral
-            print("📝 Transcriberen (Voxtral)...")
+            print("📝 Transcriberen...", end="", flush=True)
             try:
                 user_text = transcribe_audio(wav_bytes)
+                print(" ✅")
                 print(f"👤 Jij: {user_text}")
 
                 # Check stop command
@@ -300,31 +318,46 @@ def main():
                     break
 
                 # Get AI response via Orchestrator → Ministral
-                print("🤔 Denken (Ministral)...")
-                ai_response, function_calls = chat_via_orchestrator(
+                print("🔄 Processing...", end="", flush=True)
+                ai_response, function_calls, emotion_info = chat_via_orchestrator(
                     user_text,
                     conversation_id
                 )
+                print(" ✅")
 
-                # Toon function calls
+                # Emoji mapping voor emoties
+                emotion_emojis = {
+                    "happy": "😊", "sad": "😢", "angry": "😠",
+                    "surprised": "😲", "neutral": "😐", "curious": "🤔",
+                    "confused": "😕", "excited": "🤩", "thinking": "💭",
+                    "shy": "😳", "love": "😍", "tired": "😴",
+                    "bored": "😑", "proud": "😤", "worried": "😟"
+                }
+
+                # Debug: Toon ALLE tool calls
                 if function_calls:
+                    print(f"🔧 [TOOL CALLS] {len(function_calls)} tool call(s):")
                     for fc in function_calls:
                         name = fc.get('name', '')
                         args = fc.get('arguments', {})
+                        print(f"   → {name}({args})")
+                else:
+                    print("🔧 [TOOL CALLS] geen")
 
-                        if name == 'show_emotion':
-                            emotion = args.get('emotion', 'neutral')
-                            emotion_emojis = {
-                                "happy": "😊", "sad": "😢", "angry": "😠",
-                                "surprised": "😲", "neutral": "😐", "curious": "🤔",
-                                "confused": "😕", "excited": "🤩", "thinking": "🧠"
-                            }
-                            emoji = emotion_emojis.get(emotion, "🤖")
-                            print(f"🎭 [EMOTIE] {emotion} {emoji}")
+                # Emotie status tonen
+                emotion = emotion_info.get('current', 'neutral')
+                emoji = emotion_emojis.get(emotion, "🤖")
+                changed = emotion_info.get('changed', False)
+                auto_reset = emotion_info.get('auto_reset', False)
 
-                        elif name == 'take_photo':
-                            question = args.get('question', '')
-                            print(f"📷 [FOTO] Analyseren: {question}")
+                if auto_reset:
+                    status = "auto-reset"
+                elif changed:
+                    status = "VERANDERD"
+                else:
+                    status = "behouden"
+
+                print(f"🎭 [EMOTIE] {emotion} {emoji} ({status})")
 
                 print(f"🤖 NerdCarX: {ai_response}")
 
