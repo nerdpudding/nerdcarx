@@ -57,7 +57,7 @@
 - Faster-Whisper v3 Large - Afgewezen: minder noise robust
 - FP8 quantization - Afgewezen: werkt niet met vLLM
 
-**Referentie:** [Research document](fase1-desktop/stt-voxtral/research/research.md)
+**Referentie:** [Research document](archive/old-docs/stt-research/research.md)
 
 ---
 
@@ -252,7 +252,7 @@ Emoties als persistente state in de orchestrator. De robot simuleert emoties die
 - `vad-desktop/vad_conversation.py` - Verbeterde debug output
 - `config.yml` - Emotie prompt instructies
 
-**Referentie:** Zie fase1-desktop/PLAN.md
+**Referentie:** Zie fase1-desktop/README.md
 
 ---
 

@@ -35,8 +35,8 @@ Alle projectbeslissingen staan op **één plek**: [`DECISIONS.md`](DECISIONS.md)
 | `DECISIONS.md` | Alle beslissingen | Bij elke keuze |
 | `README.md` | Overzicht + huidige fase | Bij fasewissel |
 | `archive/` | Afgeronde documenten (read-only) | Nooit |
-| `*/PLAN.md` | Checklist per fase | Tijdens die fase |
-| `research/` | Losse notities | Vrij |
+| `*/README.md` | Overzicht per fase/component | Tijdens die fase |
+| `*/TODO.md` | Openstaande punten | Bij nieuwe wensen |
 
 ### Waarom zo?
 
@@ -105,22 +105,21 @@ nerdcarx/
 │   ├── README.md                      # Uitleg archief
 │   ├── 0.concept/                     # Origineel projectconcept
 │   ├── old-fase-plans/                # Oude fase plannen (ter referentie)
-│   └── old-plans/                     # Gearchiveerde plannen (emotion, TTS, etc.)
+│   ├── old-plans/                     # Gearchiveerde plannen (emotion, TTS, etc.)
+│   ├── old-code/                      # Oude code (Chatterbox TTS)
+│   └── old-docs/                      # Oude documentatie en research
 │
 ├── fase1-desktop/                     # Fase 1: Desktop Compleet
-│   ├── PLAN.md                        # Checklist en voortgang
-│   ├── TESTPLAN.md                    # Test handleiding
+│   ├── README.md                      # Overzicht en quick start
+│   ├── TODO.md                        # Openstaande punten
 │   ├── config.yml                     # Centrale configuratie
 │   ├── stt-voxtral/                   # Speech-to-Text (Voxtral)
 │   │   ├── docker/
 │   │   └── README.md
 │   ├── llm-ministral/                 # LLM (Ministral via Ollama)
-│   │   └── README.md
 │   ├── tts/                           # Text-to-Speech (Fish Audio)
 │   │   ├── README.md
 │   │   └── fishaudio/                 # Fish Audio S1-mini setup
-│   │       ├── elevenreference/       # NL reference audio bestanden
-│   │       └── test_parameters.py     # Parameter test script
 │   ├── orchestrator/                  # FastAPI orchestrator
 │   │   └── README.md
 │   └── vad-desktop/                   # VAD hands-free testing
@@ -142,7 +141,7 @@ nerdcarx/
 ## Quick Start
 
 ```bash
-# Zie fase1-desktop/PLAN.md voor complete instructies
+# Zie fase1-desktop/README.md voor complete instructies
 
 # 1. Start Voxtral STT (GPU1)
 cd fase1-desktop/stt-voxtral/docker && docker compose up -d

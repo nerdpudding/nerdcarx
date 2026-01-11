@@ -13,6 +13,7 @@
 | `old-fase-plans/` | Oude fase plannen (voor D006 herindeling) | 2026-01-11 |
 | `old-plans/` | Gearchiveerde feature plannen (Chatterbox, emotion, etc.) | 2026-01-11 |
 | `old-code/` | Verouderde code (Chatterbox TTS service) | 2026-01-11 |
+| `old-docs/` | Verouderde documentatie (TESTPLAN, research) | 2026-01-11 |
 
 ## Waarom archiveren?
 

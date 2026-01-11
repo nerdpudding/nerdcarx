@@ -34,20 +34,18 @@
 
 ```
 fase1-desktop/
-├── PLAN.md                 # Dit bestand
-├── TESTPLAN.md             # Test handleiding
+├── README.md               # Dit bestand
+├── TODO.md                 # Openstaande punten
 ├── config.yml              # Centrale configuratie
 ├── stt-voxtral/            # Speech-to-Text
 │   ├── docker/             # Docker setup
 │   └── README.md
 ├── llm-ministral/          # LLM setup
-│   └── README.md
 ├── tts/                    # Text-to-Speech (Fish Audio)
 │   ├── README.md
 │   └── fishaudio/          # Fish Audio setup
 │       ├── README.md
-│       ├── elevenreference/ # NL reference audio
-│       └── test_parameters.py
+│       └── elevenreference/ # NL reference audio
 ├── orchestrator/           # FastAPI orchestrator
 │   └── main.py
 └── vad-desktop/            # VAD hands-free testing
