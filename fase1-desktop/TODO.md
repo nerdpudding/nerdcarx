@@ -101,8 +101,13 @@ def normalize_for_tts(text: str) -> str:
         'Z': 'zet'
     }
 
+    # Woorden die NIET fonetisch gespeld moeten worden
+    SKIP_ACRONYMS = {'OK', 'TV', 'AI', 'ID'}  # Voeg toe naar behoefte
+
     def spell_acronym(match):
         acronym = match.group(0)
+        if acronym in SKIP_ACRONYMS:
+            return acronym  # Niet veranderen
         return '-'.join(NL_LETTER_SOUNDS.get(c, c) for c in acronym)
 
     # Match 2+ hoofdletters als heel woord (word boundaries)
@@ -138,6 +143,8 @@ def normalize_for_tts(text: str) -> str:
             return num_str
 
     # Match getallen (inclusief decimalen en ranges)
+    # NOTE: Dit matcht "2.5" maar NIET "2,5" (NL komma) of "3–5" (en-dash)
+    # Uitbreiden indien nodig: r'\b\d+(?:[.,]\d+)?(?:[-–]\d+)?\b'
     text = re.sub(r'\b\d+(?:\.\d+)?(?:-\d+)?\b', replace_number, text)
 
     return text
@@ -472,31 +479,38 @@ def split_into_sentences(text: str) -> list[str]:
     """
 
     # 1. Bescherm bekende afkortingen (vervang punt tijdelijk)
-    protected = {
-        'Dr.': 'Dr<DOT>',
-        'Mr.': 'Mr<DOT>',
-        'bv.': 'bv<DOT>',
-        'bijv.': 'bijv<DOT>',
-        'etc.': 'etc<DOT>',
-        'evt.': 'evt<DOT>',
-        'incl.': 'incl<DOT>',
-        'excl.': 'excl<DOT>',
-        'nr.': 'nr<DOT>',
-        'ca.': 'ca<DOT>',
-        'o.a.': 'o<DOT>a<DOT>',
-        'i.p.v.': 'i<DOT>p<DOT>v<DOT>',
-    }
+    # NOTE: Gebruik regex voor case-insensitive matching indien nodig
+    protected = [
+        (r'\bDr\.', 'Dr<DOT>'),
+        (r'\bMr\.', 'Mr<DOT>'),
+        (r'\bbv\.', 'bv<DOT>'),
+        (r'\bbijv\.', 'bijv<DOT>'),
+        (r'\betc\.', 'etc<DOT>'),
+        (r'\bevt\.', 'evt<DOT>'),
+        (r'\bincl\.', 'incl<DOT>'),
+        (r'\bexcl\.', 'excl<DOT>'),
+        (r'\bnr\.', 'nr<DOT>'),
+        (r'\bca\.', 'ca<DOT>'),
+        (r'\bo\.a\.', 'o<DOT>a<DOT>'),
+        (r'\bi\.p\.v\.', 'i<DOT>p<DOT>v<DOT>'),
+    ]
 
-    for abbr, placeholder in protected.items():
-        text = text.replace(abbr, placeholder)
+    for pattern, placeholder in protected:
+        text = re.sub(pattern, placeholder, text, flags=re.IGNORECASE)
 
     # 2. Split op zin-einden (. ! ? gevolgd door spatie of einde)
     sentences = re.split(r'(?<=[.!?])\s+', text)
 
     # 3. Herstel afkortingen
+    restore = [
+        ('Dr<DOT>', 'Dr.'), ('Mr<DOT>', 'Mr.'), ('bv<DOT>', 'bv.'),
+        ('bijv<DOT>', 'bijv.'), ('etc<DOT>', 'etc.'), ('evt<DOT>', 'evt.'),
+        ('incl<DOT>', 'incl.'), ('excl<DOT>', 'excl.'), ('nr<DOT>', 'nr.'),
+        ('ca<DOT>', 'ca.'), ('o<DOT>a<DOT>', 'o.a.'), ('i<DOT>p<DOT>v<DOT>', 'i.p.v.'),
+    ]
     result = []
     for s in sentences:
-        for abbr, placeholder in protected.items():
+        for placeholder, abbr in restore:
             s = s.replace(placeholder, abbr)
         if s.strip():
             result.append(s.strip())
@@ -577,12 +591,35 @@ async def play_with_buffer(audio_stream, buffer_ms=200):
         play_audio(chunk)
 ```
 
+### Belangrijk: TTS parallel, afspelen in-order
+
+Bij geavanceerde implementatie: start TTS-tasks **parallel** (async queue), maar speel audio altijd **in volgorde** af. Anders krijg je zinnen door elkaar!
+
+```python
+import asyncio
+
+async def parallel_tts_ordered_playback(sentences, client):
+    """TTS parallel starten, maar in volgorde afspelen."""
+
+    # Start alle TTS tasks tegelijk
+    tasks = [
+        asyncio.create_task(synthesize_speech(s, emotion, client))
+        for s in sentences
+    ]
+
+    # Wacht en speel af in originele volgorde
+    for task in tasks:
+        audio = await task
+        yield audio  # Altijd in volgorde
+```
+
 ### Wanneer implementeren?
 
 | Versie | Complexiteit | Wanneer |
 |--------|--------------|---------|
-| Basis (per zin) | Laag | Als huidige latency stoort |
+| Basis (per zin, sequentieel) | Laag | Als huidige latency stoort |
 | + Pipelining | Medium | Voor langere antwoorden |
+| + Parallel TTS | Medium | Voor maximale snelheid |
 | + Micro-buffering | Medium | Als je "gaten" hoort over WiFi |
 
 Huidige ~1.2s is acceptabel. Overweeg voor fase 2/3.
