@@ -159,7 +159,21 @@ De orchestrator is aangepast voor Fish Audio API:
 
 - [x] TTS latency opgelost (D009 - Fish Audio ~1.2s vs Chatterbox 5-20s)
 - [x] Orchestrator Fish Audio integratie
-- [ ] End-to-end test
+- [x] End-to-end test (zie `tts/test_output/full_flow_test_2026-01-11.md`)
+
+### 4. Open Issues / Wensen
+
+**TTS Kwaliteit:**
+- [ ] Parameters vergelijken: waarom klinkt het Engelser dan in test script?
+- [ ] Kortere zinnen genereren in LLM prompt?
+
+**STT:**
+- [ ] Voxtral negeert soms `language: 'nl'` - transcribeert Engels
+
+**Playback Interrupt (wens):**
+- [ ] Playback onderbreken tijdens afspelen (voice-based of keyboard)
+- Opties: VAD tijdens playback, keyboard shortcut, of wake word
+- Audio echo is uitdaging bij voice-based oplossing
 
 **→ Daarna: Fase 2: Refactor + Dockerizen**
 
@@ -204,6 +218,7 @@ De orchestrator is aangepast voor Fish Audio API:
 | 2026-01-11 | Config.yml bijgewerkt voor Fish Audio |
 | 2026-01-11 | Documentatie bijgewerkt |
 | 2026-01-11 | Orchestrator aangepast voor Fish Audio API |
+| 2026-01-11 | End-to-end test uitgevoerd (resultaten in tts/test_output/) |
 
 ---
 
