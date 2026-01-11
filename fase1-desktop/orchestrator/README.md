@@ -10,31 +10,37 @@ FastAPI service die STT, LLM, Vision en Function Calling aan elkaar koppelt.
 ## Huidige Features
 
 - **Chat/Conversation** - met history management
-- **Vision** - foto meesturen bij elke request
-- **Function Calling** - show_emotion tool
+- **Vision** - via `take_photo` tool (on-demand)
+- **Function Calling** - `show_emotion` en `take_photo` tools
 - **Tool loop** - automatisch tool results verwerken
+- **Centrale config** - `config.yml` met hot reload
 
 ## Quick Start
 
 ```bash
 # 1. Zorg dat Ollama draait
 docker run -d --gpus device=0 -v ollama:/root/.ollama -p 11434:11434 \
-  --name ollama-nerdcarx -e OLLAMA_KV_CACHE_TYPE=q8_0 ollama/ollama
-docker exec ollama-nerdcarx ollama pull ministral-3:14b
+  --name ollama-nerdcarx \
+  -e OLLAMA_KV_CACHE_TYPE=q8_0 \
+  -e OLLAMA_KEEP_ALIVE=-1 \
+  ollama/ollama
+docker exec ollama-nerdcarx ollama pull ministral-3:14b-instruct-2512-q8_0
 
 # 2. Start orchestrator
 conda activate nerdcarx-vad
-cd 1.fase1-desktop-audio/1d-orchestrator
+cd fase1-desktop/orchestrator
 uvicorn main:app --host 0.0.0.0 --port 8200 --reload
 ```
 
 ## Endpoints
 
-### Health & Status
+### Health & Config
 
 ```bash
-curl http://localhost:8200/health
-curl http://localhost:8200/status
+curl http://localhost:8200/health   # Service status
+curl http://localhost:8200/config   # Huidige configuratie
+curl http://localhost:8200/tools    # Beschikbare tools
+curl -X POST http://localhost:8200/reload-config  # Config herladen
 ```
 
 ### Chat (zonder history)
@@ -77,26 +83,31 @@ curl -X POST http://localhost:8200/conversation \
                           ↓
                     [Orchestrator :8200]
                           ↓
-                    inject image_base64
+                    [Ollama :11434] (Ministral 14B Q8)
                           ↓
-                    [Ollama :11434] (Ministral 14B)
-                          ↓
-                    tool_calls? → execute → get final response
+                    tool_calls? → execute (show_emotion, take_photo)
                           ↓
                     response + function_calls
 ```
 
 ## Configuratie
 
-In `main.py`:
+Alle configuratie staat in `../config.yml`:
 
-```python
-OLLAMA_URL = "http://localhost:11434"
-OLLAMA_MODEL = "ministral-3:14b"
-VOXTRAL_URL = "http://localhost:8150"
-DEFAULT_NUM_CTX = 65536
-DEFAULT_TEMPERATURE = 0.15  # Ministral default
+```yaml
+ollama:
+  url: "http://localhost:11434"
+  model: "ministral-3:14b-instruct-2512-q8_0"
+  temperature: 0.15
+  top_p: 1.0
+  repeat_penalty: 1.0
+  num_ctx: 65536
+
+voxtral:
+  url: "http://localhost:8150"
 ```
+
+Hot reload: `curl -X POST http://localhost:8200/reload-config`
 
 ## Function Calling
 
@@ -106,7 +117,9 @@ De orchestrator handelt de volledige tool calling loop af:
 2. Als tool_calls in response: execute en stuur result terug
 3. Herhaal tot finale tekst response
 
-Huidige tool: `show_emotion` (happy, sad, angry, etc.)
+Huidige tools:
+- `show_emotion` - toon emotie op OLED (happy, sad, angry, etc.)
+- `take_photo` - maak foto en analyseer (vision on-demand)
 
 ## Bekende Issues
 

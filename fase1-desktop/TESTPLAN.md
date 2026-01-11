@@ -32,7 +32,7 @@ fase1-desktop/
 
 - [ ] Conda environment actief: `conda activate nerdcarx-vad`
 - [ ] PyYAML geïnstalleerd: `pip install pyyaml`
-- [ ] Model gedownload: `ollama pull ministral-3:14b-instruct-2512-q8_0`
+- [ ] Model gedownload: `docker exec ollama-nerdcarx ollama pull ministral-3:14b-instruct-2512-q8_0`
 
 ---
 
@@ -52,15 +52,28 @@ curl http://localhost:8150/health
 
 ---
 
-## Stap 2: Start Ollama LLM
+## Stap 2: Check Ollama LLM (Docker)
 
+Ollama draait in Docker container `ollama-nerdcarx` op GPU0.
+
+**Eerste keer starten:**
 ```bash
-ollama serve
+docker run -d --gpus device=0 -v ollama:/root/.ollama -p 11434:11434 \
+  --name ollama-nerdcarx \
+  -e OLLAMA_KV_CACHE_TYPE=q8_0 \
+  -e OLLAMA_KEEP_ALIVE=-1 \
+  ollama/ollama
+docker exec ollama-nerdcarx ollama pull ministral-3:14b-instruct-2512-q8_0
 ```
 
-**Check (in andere terminal):**
+**Check (container al gestart):**
 ```bash
-ollama list
+# Container draait?
+docker ps | grep ollama-nerdcarx
+# Verwacht: ollama-nerdcarx met port 11434
+
+# Model aanwezig?
+docker exec ollama-nerdcarx ollama list
 # Verwacht: ministral-3:14b-instruct-2512-q8_0 in de lijst
 ```
 
@@ -177,7 +190,7 @@ cd fase1-desktop/stt-voxtral/docker
 docker compose down
 ```
 
-**Ollama:** `Ctrl+C` of `ollama stop`
+**Ollama:** `docker stop ollama-nerdcarx` (of laten draaien)
 
 ---
 
@@ -186,9 +199,9 @@ docker compose down
 | Probleem | Oplossing |
 |----------|-----------|
 | `Config niet gevonden` | Check of je in `orchestrator/` folder bent |
-| `Ollama niet bereikbaar` | `ollama serve` draaien? |
+| `Ollama niet bereikbaar` | `docker start ollama-nerdcarx` |
 | `Voxtral niet bereikbaar` | `docker compose up -d` in stt-voxtral/docker |
-| `Model not found` | `ollama pull ministral-3:14b-instruct-2512-q8_0` |
+| `Model not found` | `docker exec ollama-nerdcarx ollama pull ministral-3:14b-instruct-2512-q8_0` |
 | `No module yaml` | `pip install pyyaml` |
 
 ---
