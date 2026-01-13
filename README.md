@@ -13,7 +13,12 @@ Een AI-gestuurde robotauto gebaseerd op de PiCar-X, met lokale spraakinteractie,
 - [Hardware Vereisten](#hardware-vereisten)
 - [Status](#status)
 
-> **Nieuw:** Zie [`ARCHITECTURE.md`](ARCHITECTURE.md) voor een uitgebreid overzicht met C4 diagrammen, huidige status, roadmap en toekomstmogelijkheden.
+> **📐 Architectuur Overzicht:** Zie [`ARCHITECTURE.md`](ARCHITECTURE.md) voor:
+> - Waarom deze architectuur en technologie keuzes (design rationale)
+> - PiCar-X hardware platform en ingebouwde mogelijkheden
+> - Wat onze lokale AI stack toevoegt boven de standaard PiCar-X
+> - C4 diagrammen (Context, Container, Component) per fase
+> - Huidige status, roadmap en toekomstige uitbreidingen
 
 ---
 
@@ -228,9 +233,12 @@ De TODO bevat uitgebreide plannen voor:
 
 **Volgende stap:** Implementeer TODO items, daarna Fase 2 (Refactor)
 
-**Laatste update:** 2026-01-11 - TODO uitgebreid met TTS verbeteringen en pseudo-streaming
+**Laatste update:** 2026-01-13 - ARCHITECTURE.md toegevoegd met uitgebreide documentatie
 
-> Zie [`DECISIONS.md`](DECISIONS.md) voor alle beslissingen en rationale.
+> **Meer weten?**
+> - [`ARCHITECTURE.md`](ARCHITECTURE.md) - Uitgebreide architectuur documentatie met diagrammen
+> - [`DECISIONS.md`](DECISIONS.md) - Alle beslissingen en rationale
+> - [`original_Picar-X-REFERENCE/`](original_Picar-X-REFERENCE/) - PiCar-X hardware documentatie
 
 ---
 

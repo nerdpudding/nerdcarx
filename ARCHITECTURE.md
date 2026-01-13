@@ -5,6 +5,22 @@
 
 ---
 
+## Table of Contents
+
+1. [Executive Summary](#1-executive-summary)
+2. [Design Rationale](#2-design-rationale)
+3. [What Can It Do?](#3-what-can-it-do)
+4. [Hardware Platform: PiCar-X](#4-hardware-platform-picar-x)
+5. [System Context (C1)](#5-system-context-c1)
+6. [Container View (C2)](#6-container-view-c2)
+7. [Component View (C3)](#7-component-view-c3)
+8. [Technology Stack](#8-technology-stack)
+9. [Current Status](#9-current-status)
+10. [Roadmap](#10-roadmap)
+11. [Future Possibilities](#11-future-possibilities)
+
+---
+
 ## 1. Executive Summary
 
 NerdCarX is an AI-powered robot car that can hold conversations in Dutch, display emotions, and perceive its surroundings through a camera. It's built on a PiCar-X platform with a Raspberry Pi 5, but all heavy AI processing happens on a separate desktop server with GPUs.
@@ -72,7 +88,7 @@ The AI models are too heavy for a Raspberry Pi:
 | Use Case | Description | Status |
 |----------|-------------|--------|
 | **Voice Conversation** | Ask questions in Dutch, get spoken answers | Working |
-| **Emotional Responses** | Robot displays emotions (happy, sad, curious, etc.) based on conversation tone | Working |
+| **Emotional Responses** | Robot maintains persistent emotional state (not per-message) shown on OLED display | Working |
 | **Visual Awareness** | "What do you see?" - robot describes its surroundings | Working |
 | **Movement Commands** | "Drive forward", "turn left" - physical robot control | Phase 3 |
 | **Proactive Interaction** | Robot initiates conversation when idle or detects a person | Phase 4 |
@@ -93,7 +109,63 @@ Robot: [shows sad emotion] "Dat doet pijn om te horen..."
 
 ---
 
-## 4. System Context (C1)
+## 4. Hardware Platform: PiCar-X
+
+NerdCarX is built on the **SunFounder PiCar-X** platform - an AI-ready robot car kit that comes with significant capabilities out of the box. Our AI integration enhances these, but the hardware itself is quite capable.
+
+### Hardware Components
+
+| Component | Description |
+|-----------|-------------|
+| **Robot HAT** | Expansion board with motor driver, I2S audio, mono speaker, PWM/ADC, LED, button |
+| **2-Axis Camera Mount** | Pan/tilt servos for camera positioning |
+| **Camera Module** | OV5647, 5MP, 1080p/30fps, 720p/60fps, 65° FOV |
+| **Ultrasonic Sensor** | HC-SR04, 2-400cm range, 3mm accuracy |
+| **Grayscale Module** | 3-channel line/cliff detection |
+| **DC Motors** | Differential drive for movement |
+| **Steering Servo** | Front wheel steering |
+| **Battery Pack** | 2x 18650, 2000mAh, 7-12V |
+| **OLED Display** *(added)* | 0.96" I2C (128x64) - Shows robot's emotional state (see Emotion State Machine) |
+
+### Built-in Capabilities (Standard PiCar-X)
+
+These capabilities come standard with PiCar-X using its included scripts, OpenCV, and optional cloud APIs (OpenAI, etc.). Our stack replaces/enhances these with local, high-quality alternatives:
+
+| Capability | How It Works | Our AI Enhancement |
+|------------|--------------|-------------------|
+| **Basic Movement** | Motor control: forward, backward, turn, steer | Voice commands: "drive forward" |
+| **Obstacle Avoidance** | Ultrasonic detects obstacles, auto-stops/turns | LLM decides how to respond, explains what it sees |
+| **Cliff Detection** | Grayscale sensors detect edges/drops | Contextual awareness in conversations |
+| **Line Tracking** | Follow lines on ground using grayscale | Could be voice-activated: "follow the line" |
+| **Face Tracking** | OpenCV detects faces, servos follow | Combined with emotion recognition |
+| **Color Detection** | OpenCV detects specific colors | "Drive towards the red object" |
+| **Video Streaming** | Stream camera to web/app | Real-time monitoring + AI analysis |
+| **App Control** | SunFounder Controller app | Voice control replaces manual control |
+| **Sound/Music** | Play audio via I2S speaker | TTS for voice responses |
+| **Keyboard Control** | Control via keyboard input | Natural language replaces key presses |
+
+### What Our Local AI Stack Adds
+
+| Standard PiCar-X | + NerdCarX Local AI |
+|------------------|---------------------|
+| Pre-programmed responses or cloud API calls | Natural conversation in Dutch, fully local |
+| Fixed behavior patterns | Context-aware, adaptive responses |
+| Manual or simple auto control | Voice-commanded actions |
+| Basic TTS (espeak) or cloud TTS | High-quality Dutch TTS (Fish Audio, local) |
+| Command-based interaction | Conversational interaction with personality |
+| Reactive only | Proactive (initiates conversation) |
+| No memory | Remembers context, learns preferences |
+| Single capability at a time | Integrated: talk while moving, emote while responding |
+| Cloud API dependency (optional) | Privacy-first, no recurring costs |
+
+### Reference
+
+For detailed PiCar-X documentation, examples, and tutorials:
+- [original_Picar-X-REFERENCE/Documentation/](original_Picar-X-REFERENCE/Documentation/)
+
+---
+
+## 5. System Context (C1)
 
 This diagram shows NerdCarX in its environment - who uses it and what systems it connects to.
 
@@ -133,7 +205,7 @@ C4Context
 
 ---
 
-## 5. Container View (C2)
+## 6. Container View (C2)
 
 The architecture evolves across phases. Below are diagrams showing each stage.
 
@@ -244,7 +316,7 @@ flowchart TB
 
 ---
 
-## 6. Component View (C3)
+## 7. Component View (C3)
 
 Inside the Orchestrator - the brain that coordinates everything.
 
@@ -273,10 +345,23 @@ flowchart TB
 ### Key Features
 
 **Emotion State Machine:**
-- 15 emotions: happy, sad, angry, surprised, neutral, curious, confused, excited, thinking, shy, love, tired, bored, proud, worried
-- Persistent per conversation (in-memory)
-- Auto-reset to neutral after 5 minutes of inactivity
-- Current emotion passed to LLM for context awareness
+
+The robot maintains a **persistent emotional state** - not just showing a smiley per response, but simulating an actual emotional state that evolves over the conversation:
+
+- **15 emotions**: happy, sad, angry, surprised, neutral, curious, confused, excited, thinking, shy, love, tired, bored, proud, worried
+- **Stateful**: Emotion persists until explicitly changed (not reset per message)
+- **LLM-driven**: The LLM decides when to call `show_emotion(emotion)` based on conversation context
+- **Context-aware**: Current emotion is passed to LLM in system prompt, influencing responses
+- **Auto-reset**: Returns to neutral after 5 minutes of inactivity
+- **OLED display** (Phase 3): Shows current emotion as visual expression on the robot
+
+Example flow:
+```
+User: "Je bent dom!" → LLM calls show_emotion("sad") → state changes to SAD
+User: "Sorry, dat meende ik niet" → LLM calls show_emotion("neutral") → state changes to NEUTRAL
+User: "Je bent geweldig!" → LLM calls show_emotion("happy") → state changes to HAPPY
+(5 min silence) → auto-reset to NEUTRAL
+```
 
 **Function Calling:**
 - `show_emotion(emotion)` - Update robot's emotional display
@@ -292,7 +377,7 @@ flowchart TB
 
 ---
 
-## 7. Technology Stack
+## 8. Technology Stack
 
 | Component | Technology | Why This Choice |
 |-----------|------------|-----------------|
@@ -308,7 +393,7 @@ flowchart TB
 
 ---
 
-## 8. Current Status
+## 9. Current Status
 
 ### What's Working (Phase 1)
 
@@ -342,7 +427,7 @@ The following items from [fase1-desktop/TODO.md](fase1-desktop/TODO.md) are bein
 
 ---
 
-## 9. Roadmap
+## 10. Roadmap
 
 ```mermaid
 flowchart LR
@@ -372,7 +457,7 @@ Clean up code (SOLID, KISS, DRY), full Docker Compose stack, API documentation, 
 **Details:** [fase2-refactor/PLAN.md](fase2-refactor/PLAN.md)
 
 ### Phase 3: Pi 5 Integration
-Connect real hardware - PiCar-X robot, OLED display, motors, wake word detection. Desktop remains the AI brain, Pi handles physical interaction.
+Connect real hardware - PiCar-X robot, motors, wake word detection, and OLED display for showing the robot's emotional state (driven by the Emotion State Machine). Desktop remains the AI brain, Pi handles physical interaction.
 
 **Details:** [fase3-pi/PLAN.md](fase3-pi/PLAN.md)
 
@@ -383,7 +468,7 @@ Add "life" to the robot - idle behaviors (blinking, looking around), proactive c
 
 ---
 
-## 10. Future Possibilities
+## 11. Future Possibilities
 
 The modular architecture creates a **foundation** that can grow without rewrites. Here's what the system can support:
 
