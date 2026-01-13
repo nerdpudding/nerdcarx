@@ -15,7 +15,59 @@ NerdCarX is an AI-powered robot car that can hold conversations in Dutch, displa
 
 ---
 
-## 2. What Can It Do?
+## 2. Design Rationale
+
+### Why Local-First?
+
+| Benefit | Explanation |
+|---------|-------------|
+| **No recurring costs** | Cloud APIs charge per request. Local = one-time hardware investment |
+| **No rate limits** | Experiment freely without API throttling |
+| **Privacy** | Conversations never leave your network |
+| **Low latency** | No round-trip to cloud servers |
+| **Learning opportunity** | Understanding the full stack, not just API calls |
+| **Full control** | Tune parameters, switch models, modify behavior |
+
+Cloud fallback is planned (Phase 4+) for flexibility, but local-first remains the default.
+
+### Why Desktop + Pi Split?
+
+The AI models are too heavy for a Raspberry Pi:
+
+| Model | VRAM Required | Pi 5 Has | Verdict |
+|-------|---------------|----------|---------|
+| Voxtral 3B (STT) | ~15 GB | 0 GB (shared RAM) | Too heavy |
+| Ministral 14B (LLM) | ~20 GB | 0 GB | Way too heavy |
+| Fish Audio (TTS) | ~4-6 GB | 0 GB | Too heavy |
+
+**Solution:** Desktop does the "thinking" (GPU-heavy AI), Pi does the "sensing and acting" (mic, speaker, motors, display). They communicate over LAN via WebSocket.
+
+### Why These Technologies?
+
+| Choice | Why | Alternatives Considered |
+|--------|-----|-------------------------|
+| **Ollama** (LLM serving) | Simple setup, one command to run models, built-in API, great for local development | llama.cpp (lower level), vLLM (overkill for single model) |
+| **vLLM** (STT serving) | Required for Voxtral - it's a Mistral model needing proper vLLM support, handles batching efficiently | Ollama (doesn't support Voxtral), TGI (less mature) |
+| **FastAPI** (Orchestrator) | Lightweight, async, full control, no magic. LangChain considered but adds complexity without clear benefit for this use case | LangChain (too abstract), Flask (not async) |
+| **Docker** | Reproducible environments, GPU isolation, easy to deploy and version | Conda only (works but less portable) |
+| **WebSocket** (Pi ↔ Desktop) | Bidirectional, low latency, persistent connection for real-time interaction | REST (higher latency, polling needed), MQTT (overkill for point-to-point) |
+
+### Why These Models?
+
+| Model | Why This One | Key Deciding Factors |
+|-------|--------------|---------------------|
+| **Voxtral Mini 3B** | Dutch is one of only 8 officially supported languages. Better noise robustness than Whisper. Can do audio Q&A, not just transcription. | Tested Faster-Whisper - less robust in noisy environments |
+| **Ministral 14B** | Native function calling support, vision capability, reasonable size for 24GB GPU. Official Mistral parameters (temp=0.15) reduce hallucinations. | Tested 8B variant - 14B Q8 noticeably better quality |
+| **Fish Audio S1-mini** | #1 on TTS-Arena2 benchmark, ~1.2s latency (vs 5-20s for Chatterbox). Dutch via voice cloning with reference audio. | Tested Chatterbox (too slow), Piper (less expressive), VibeVoice (Belgian accent) |
+| **YOLO Nano/Small** | Runs on Pi 5's GPU, real-time object detection, well-documented, many pre-trained variants | Full YOLO too heavy for Pi |
+| **Porcupine** (Wake word) | Accurate, low CPU, custom wake words, works offline, has hobby license | Snowboy (discontinued), Mycroft Precise (less accurate) |
+| **Silero VAD** | Local, no network, reliable voice activity detection, works with Python | WebRTC VAD (less accurate), cloud VAD (defeats local-first) |
+
+> For complete decision history with dates and alternatives: [DECISIONS.md](DECISIONS.md)
+
+---
+
+## 3. What Can It Do?
 
 | Use Case | Description | Status |
 |----------|-------------|--------|
@@ -41,7 +93,7 @@ Robot: [shows sad emotion] "Dat doet pijn om te horen..."
 
 ---
 
-## 3. System Context (C1)
+## 4. System Context (C1)
 
 This diagram shows NerdCarX in its environment - who uses it and what systems it connects to.
 
@@ -81,7 +133,7 @@ C4Context
 
 ---
 
-## 4. Container View (C2)
+## 5. Container View (C2)
 
 The architecture evolves across phases. Below are diagrams showing each stage.
 
@@ -192,7 +244,7 @@ flowchart TB
 
 ---
 
-## 5. Component View (C3)
+## 6. Component View (C3)
 
 Inside the Orchestrator - the brain that coordinates everything.
 
@@ -240,7 +292,7 @@ flowchart TB
 
 ---
 
-## 6. Technology Stack
+## 7. Technology Stack
 
 | Component | Technology | Why This Choice |
 |-----------|------------|-----------------|
@@ -256,7 +308,7 @@ flowchart TB
 
 ---
 
-## 7. Current Status
+## 8. Current Status
 
 ### What's Working (Phase 1)
 
@@ -290,7 +342,7 @@ The following items from [fase1-desktop/TODO.md](fase1-desktop/TODO.md) are bein
 
 ---
 
-## 8. Roadmap
+## 9. Roadmap
 
 ```mermaid
 flowchart LR
@@ -331,7 +383,7 @@ Add "life" to the robot - idle behaviors (blinking, looking around), proactive c
 
 ---
 
-## 9. Future Possibilities
+## 10. Future Possibilities
 
 The modular architecture creates a **foundation** that can grow without rewrites. Here's what the system can support:
 
@@ -371,7 +423,7 @@ The architecture is designed (Phase 2 refactor) to easily swap between local and
 - **Web dashboard** - Remote monitoring, configuration, conversation history
 - **Mobile app** - Control robot from phone, receive notifications
 - **REST/WebSocket API** - Third-party integrations, custom clients
-- **Home automation** - Home Assistant, MQTT, smart home integration
+- **Home automation** - Home Assistant, possibly MQTT if needed for smart home integration
 - **Voice assistant bridge** - Connect to Alexa/Google Home ecosystem
 
 ### Behavior Extensions
