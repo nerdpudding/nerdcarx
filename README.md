@@ -13,6 +13,8 @@ Een AI-gestuurde robotauto gebaseerd op de PiCar-X, met lokale spraakinteractie,
 - [Hardware Vereisten](#hardware-vereisten)
 - [Status](#status)
 
+> **Nieuw:** Zie [`ARCHITECTURE.md`](ARCHITECTURE.md) voor een uitgebreid overzicht met C4 diagrammen, huidige status, roadmap en toekomstmogelijkheden.
+
 ---
 
 ## Werkwijze
@@ -32,6 +34,7 @@ Alle projectbeslissingen staan op **één plek**: [`DECISIONS.md`](DECISIONS.md)
 
 | Document | Doel | Bijwerken |
 |----------|------|-----------|
+| `ARCHITECTURE.md` | Architectuur overzicht met C4 diagrammen | Bij grote wijzigingen |
 | `DECISIONS.md` | Alle beslissingen | Bij elke keuze |
 | `README.md` | Overzicht + huidige fase | Bij fasewissel |
 | `archive/` | Afgeronde documenten (read-only) | Nooit |
@@ -98,6 +101,7 @@ Een interactieve AI-gestuurde robotauto bouwen die:
 ```
 nerdcarx/
 ├── README.md                          # Dit bestand
+├── ARCHITECTURE.md                    # Architectuur overzicht met C4 diagrammen
 ├── DECISIONS.md                       # Centrale beslissingen (bron van waarheid)
 ├── .gitignore                         # Git ignore regels
 │
