@@ -74,7 +74,7 @@ The AI models are too heavy for a Raspberry Pi:
 |-------|--------------|---------------------|
 | **Voxtral Mini 3B** | Dutch is one of only 8 officially supported languages. Better noise robustness than Whisper. Can do audio Q&A, not just transcription. | Tested Faster-Whisper - less robust in noisy environments |
 | **Ministral 14B** | Native function calling support, vision capability, reasonable size for 24GB GPU. Official Mistral parameters (temp=0.15) reduce hallucinations. | Tested 8B variant - 14B Q8 noticeably better quality |
-| **Fish Audio S1-mini** | #1 on TTS-Arena2 benchmark, ~1.2s latency (vs 5-20s for Chatterbox). Dutch via voice cloning with reference audio. | Tested Chatterbox (too slow), Piper (less expressive), VibeVoice (Belgian accent) |
+| **Fish Audio S1-mini** | #1 on TTS-Arena2 benchmark, ~1.2s latency (vs 5-20s for Chatterbox). Dutch via voice cloning with reference audio. | Tested Chatterbox (too slow), Piper (less expressive), VibeVoice (Belgian accent and very unreliable low quality results) |
 | **YOLO Nano/Small** | Runs on Pi 5's GPU, real-time object detection, well-documented, many pre-trained variants | Full YOLO too heavy for Pi |
 | **Porcupine** (Wake word) | Accurate, low CPU, custom wake words, works offline, has hobby license | Snowboy (discontinued), Mycroft Precise (less accurate) |
 | **Silero VAD** | Local, no network, reliable voice activity detection, works with Python | WebRTC VAD (less accurate), cloud VAD (defeats local-first) |
