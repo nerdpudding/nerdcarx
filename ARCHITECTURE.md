@@ -48,13 +48,17 @@ Cloud fallback is planned (Phase 4+) for flexibility, but local-first remains th
 
 ### Why Desktop + Pi Split?
 
-The AI models are too heavy for a Raspberry Pi:
+The AI models are too demanding for a Raspberry Pi 5, even with 16GB RAM:
 
-| Model | VRAM Required | Pi 5 Has | Verdict |
-|-------|---------------|----------|---------|
-| Voxtral 3B (STT) | ~15 GB | 0 GB (shared RAM) | Too heavy |
-| Ministral 14B (LLM) | ~20 GB | 0 GB | Way too heavy |
-| Fish Audio (TTS) | ~4-6 GB | 0 GB | Too heavy |
+| Model | Issue on Pi 5 | Verdict |
+|-------|---------------|---------|
+| Voxtral 3B (STT) | Requires GPU for acceptable speed; CPU inference far too slow | Incompatible |
+| Ministral 14B (LLM) | Requires GPU; ~20GB VRAM needed; CPU would take minutes per response | Incompatible |
+| Fish Audio (TTS) | Requires GPU for real-time synthesis | Incompatible |
+
+**The problem isn't just RAM** - the Pi 5's CPU simply cannot run these models at usable speeds. Even if models fit in memory, inference would be orders of magnitude slower than on a GPU. These models are designed for GPU compute.
+
+> *Note: Voxtral currently uses ~15GB VRAM due to vLLM's memory management, not model size. Could be optimized, but wasn't a priority with sufficient VRAM available.*
 
 **Solution:** Desktop does the "thinking" (GPU-heavy AI), Pi does the "sensing and acting" (mic, speaker, motors, display). They communicate over LAN via WebSocket.
 
