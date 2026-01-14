@@ -1,8 +1,8 @@
 # Fase 3: Pi 5 Integratie
 
-**Status:** Gepland
+**Status:** Hardware klaar, software wacht op fase 1 afronding
 **Doel:** Echte hardware, services gesplitst tussen Pi en Desktop
-**Afhankelijk van:** Fase 2 (Function Calling + Emoties)
+**Afhankelijk van:** Fase 1 (Desktop Compleet) en Fase 2 (Refactor)
 
 ## Overzicht
 
@@ -39,11 +39,11 @@ In deze fase verbinden we de Raspberry Pi 5 met de PiCar-X hardware aan de deskt
 ## Taken
 
 ### Hardware Setup
-- [ ] PiCar-X assembleren volgens handleiding
-- [ ] Basis examples van SunFounder testen
-- [ ] USB microfoon aansluiten en testen
+- [x] PiCar-X assembleren volgens handleiding
+- [x] Basis examples van SunFounder testen
+- [x] USB microfoon aansluiten (AI test nog niet gedaan)
 - [ ] OLED display aansluiten en testen
-- [ ] Camera module installeren (voor fase 4)
+- [x] Camera module installeren (exposure tuning nodig)
 
 ### Pi Client Applicatie
 - [ ] Project structuur opzetten (`pi-client/`)
@@ -171,19 +171,24 @@ pi-client/
 
 ## Hardware Checklist
 
-- [ ] Raspberry Pi 5 (16GB RAM aanbevolen)
-- [ ] PiCar-X kit v2.0 (geassembleerd)
-- [ ] USB microfoon (omnidirectioneel)
-- [ ] OLED 0.96" I2C (128x64)
-- [ ] Camera module (voor fase 4)
-- [ ] SD card (32GB+ aanbevolen)
-- [ ] Netwerk: Pi en Desktop op zelfde LAN
+- [x] Raspberry Pi 5 (16GB RAM)
+- [x] PiCar-X kit v2.0/v4 (geassembleerd)
+- [x] USB microfoon (omnidirectioneel)
+- [ ] OLED 0.96" I2C (128x64) - aanwezig, nog niet aangesloten
+- [x] Camera module (OV5647)
+- [x] SD card (128GB)
+- [x] Netwerk: Pi en Desktop op zelfde LAN
+- [x] Active cooler voor Pi 5
 
 ## Voortgang
 
 | Datum | Update |
 |-------|--------|
-| - | Fase nog niet gestart |
+| 2026-01-14 | Hardware geassembleerd en basis tests succesvol |
+| 2026-01-14 | Pi OS Lite (Trixie 64-bit) geïnstalleerd |
+| 2026-01-14 | SunFounder libraries geïnstalleerd (robot-hat, vilib, picar-x) |
+| 2026-01-14 | Motoren, servo's en I2S speaker getest - werkend |
+| 2026-01-14 | Camera werkend maar exposure tuning nodig (donker beeld) |
 
 ## Notities
 

@@ -429,6 +429,20 @@ The following items from [fase1-desktop/TODO.md](fase1-desktop/TODO.md) are bein
 2. **TTS parameter tuning** - Finding optimal temperature/top_p balance
 3. **Optional improvements** - Longer reference audio, pseudo-streaming per sentence
 
+### Hardware Status (Phase 3 Prep)
+
+| Component | Status | Notes |
+|-----------|--------|-------|
+| Raspberry Pi 5 | Ready | 16GB RAM, Pi OS Lite (Trixie 64-bit), active cooler |
+| PiCar-X Kit | Assembled | v2.0/v4, all motors and servos tested |
+| Robot HAT | Working | I2S speaker functional (mono) |
+| Camera | Working | OV5647, exposure tuning needed (dark image) |
+| USB Microphone | Connected | Not yet tested with AI pipeline |
+| OLED Display | Pending | Available, not yet connected |
+| SunFounder Libraries | Installed | robot-hat, vilib, picar-x |
+
+> Hardware assembly completed 2026-01-14. AI integration awaiting Phase 1 completion.
+
 ---
 
 ## 10. Roadmap

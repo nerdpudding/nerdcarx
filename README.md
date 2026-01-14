@@ -210,6 +210,18 @@ python vad_conversation.py
 - VAD - hands-free gesprekken met duidelijke debug output
 - Centrale config (config.yml) met hot reload
 
+**Hardware status:** ✅ PiCar-X geassembleerd (2026-01-14)
+- Raspberry Pi 5 (16GB) met Pi OS Lite (Trixie, 64-bit)
+- Active cooler geïnstalleerd
+- Robot HAT gemonteerd en werkend
+- SunFounder libraries geïnstalleerd (robot-hat, vilib, picar-x)
+- Motoren en servo's getest en werkend
+- I2S speaker werkend (mono)
+- Camera werkend (exposure tuning nodig - donker beeld)
+- USB microfoon aanwezig (nog niet getest met AI)
+- OLED display: nog niet aangesloten
+- AI integratie: nog niet gestart (wacht op fase 1 afronding)
+
 **TTS (Fish Audio S1-mini):**
 - Model: fishaudio/openaudio-s1-mini (0.5B params)
 - Nederlands via ElevenLabs reference audio (dutch2)
