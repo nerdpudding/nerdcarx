@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-PiCar-X Web Control met YOLO Object Detection
+PiCar-X Web Control met YOLO Object Detection (Pi 5 Optimized)
 
 Start: python3 nerdcarx_web.py
 Open:  http://<pi-ip>:5000
@@ -9,7 +9,9 @@ Features:
 - WASD besturing met physics (acceleratie, remmen, friction)
 - IJKL of buttons voor camera pan/tilt
 - Night/Day camera mode
-- YOLO object detection met bounding boxes in de stream
+- YOLO object detection met model selectie (nano/small/medium)
+- CLAHE preprocessing voor betere low-light detectie
+- Instelbare confidence threshold
 """
 
 from flask import Flask, render_template_string, request, jsonify, Response
@@ -19,26 +21,29 @@ from threading import Thread, Lock
 from time import sleep, time
 import socket
 import cv2
-import numpy as np
 
 # === YOLO SETUP ===
-# Probeer YOLO te laden, anders werkt het script nog steeds maar zonder detection
 YOLO_AVAILABLE = False
 yolo_model = None
+current_model_name = 'yolov8s.pt'  # Default: small model voor Pi 5
+
+# Beschikbare modellen (voor Pi 5 16GB)
+AVAILABLE_MODELS = {
+    'nano': 'yolov8n.pt',    # ~6MB, ~5-8 FPS, minst accuraat
+    'small': 'yolov8s.pt',   # ~22MB, ~3-5 FPS, goed compromis
+    'medium': 'yolov8m.pt',  # ~52MB, ~1-3 FPS, meest accuraat
+}
 
 try:
     from ultralytics import YOLO
-    print("Loading YOLO model...")
-    # yolov8n.pt = nano model, klein en snel voor Pi
-    yolo_model = YOLO('yolov8n.pt')
+    print(f"Loading YOLO model: {current_model_name}")
+    yolo_model = YOLO(current_model_name)
     YOLO_AVAILABLE = True
     print("YOLO loaded successfully!")
 except ImportError:
     print("WARNING: ultralytics not installed. Run: pip install ultralytics")
-    print("Continuing without YOLO detection...")
 except Exception as e:
     print(f"WARNING: Could not load YOLO: {e}")
-    print("Continuing without YOLO detection...")
 
 app = Flask(__name__)
 px = Picarx()
@@ -49,13 +54,21 @@ steer_angle = 0
 cam_pan = 0
 cam_tilt = 0
 camera_mode = 'night'
-yolo_enabled = True  # Toggle voor YOLO aan/uit
+yolo_enabled = True
+
+# === YOLO SETTINGS ===
+yolo_confidence = 0.35      # Lagere threshold voor betere detectie
+yolo_preprocess = True      # CLAHE preprocessing aan/uit
+yolo_model_size = 'small'   # nano/small/medium
 
 # === YOLO DETECTION STATE ===
-# Wordt geupdate door de detection thread
 yolo_detections = []
 yolo_lock = Lock()
 yolo_fps = 0
+yolo_inference_ms = 0
+
+# === CLAHE voor low-light enhancement ===
+clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
 
 # === CAMERA PRESETS ===
 NIGHT_MODE = {
@@ -87,13 +100,33 @@ STEER_SPEED = 8
 STEER_CENTER_SPEED = 4
 MAX_STEER = 35
 
-# Keys currently pressed (from browser)
 keys = set()
 
-# === YOLO DETECTION LOOP ===
+
+def preprocess_frame(frame):
+    """CLAHE preprocessing voor betere contrast in low-light"""
+    if not yolo_preprocess:
+        return frame
+
+    try:
+        # Convert naar LAB color space
+        lab = cv2.cvtColor(frame, cv2.COLOR_BGR2LAB)
+        # Split kanalen
+        l, a, b = cv2.split(lab)
+        # Apply CLAHE op L-kanaal (luminance)
+        l = clahe.apply(l)
+        # Merge terug
+        lab = cv2.merge([l, a, b])
+        # Convert terug naar BGR
+        return cv2.cvtColor(lab, cv2.COLOR_LAB2BGR)
+    except Exception as e:
+        print(f"Preprocess error: {e}")
+        return frame
+
+
 def yolo_detection_loop():
     """Draait YOLO detection op frames van Vilib.img"""
-    global yolo_detections, yolo_fps
+    global yolo_detections, yolo_fps, yolo_inference_ms
 
     if not YOLO_AVAILABLE:
         return
@@ -107,14 +140,23 @@ def yolo_detection_loop():
             continue
 
         try:
-            # Pak frame van vilib
             frame = Vilib.img
             if frame is None:
                 sleep(0.1)
                 continue
 
+            # Preprocessing voor betere detectie
+            processed = preprocess_frame(frame)
+
             # Run YOLO inference
-            results = yolo_model(frame, verbose=False, conf=0.5)
+            t_start = time()
+            results = yolo_model(
+                processed,
+                verbose=False,
+                conf=yolo_confidence,
+                imgsz=640,  # Standaard resolutie
+            )
+            yolo_inference_ms = (time() - t_start) * 1000
 
             # Parse resultaten
             detections = []
@@ -134,20 +176,19 @@ def yolo_detection_loop():
                         'y2': int(y2)
                     })
 
-            # Update global state (thread-safe)
             with yolo_lock:
                 yolo_detections = detections
 
             # Calculate FPS
             frame_count += 1
-            if frame_count >= 10:
+            if frame_count >= 5:
                 now = time()
                 yolo_fps = frame_count / (now - last_time)
                 last_time = now
                 frame_count = 0
 
-            # ~5 FPS voor YOLO op Pi (aanpasbaar)
-            sleep(0.2)
+            # Kleine pauze om CPU te sparen
+            sleep(0.05)
 
         except Exception as e:
             print(f"YOLO error: {e}")
@@ -158,16 +199,14 @@ def generate_frames():
     """Generator voor MJPEG stream met YOLO bounding boxes"""
     while True:
         try:
-            # Pak frame van vilib
             frame = Vilib.img
             if frame is None:
                 sleep(0.05)
                 continue
 
-            # Maak een kopie om op te tekenen
             frame = frame.copy()
 
-            # Teken YOLO boxes als enabled
+            # Teken YOLO boxes
             if yolo_enabled and YOLO_AVAILABLE:
                 with yolo_lock:
                     detections = yolo_detections.copy()
@@ -177,30 +216,40 @@ def generate_frames():
                     label = det['label']
                     conf = det['confidence']
 
-                    # Groene box
-                    cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                    # Box kleur op basis van confidence
+                    if conf > 0.7:
+                        color = (0, 255, 0)  # Groen - hoge confidence
+                    elif conf > 0.5:
+                        color = (0, 255, 255)  # Geel - medium
+                    else:
+                        color = (0, 165, 255)  # Oranje - lage confidence
+
+                    cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
 
                     # Label met achtergrond
                     text = f"{label} {conf:.0%}"
-                    (tw, th), _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)
-                    cv2.rectangle(frame, (x1, y1 - th - 10), (x1 + tw + 10, y1), (0, 255, 0), -1)
-                    cv2.putText(frame, text, (x1 + 5, y1 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 2)
+                    (tw, th), _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 2)
+                    cv2.rectangle(frame, (x1, y1 - th - 8), (x1 + tw + 8, y1), color, -1)
+                    cv2.putText(frame, text, (x1 + 4, y1 - 4), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 2)
 
-            # FPS indicator
+            # Status overlay
             if YOLO_AVAILABLE:
-                status = f"YOLO: {'ON' if yolo_enabled else 'OFF'} | {yolo_fps:.1f} FPS"
+                status = f"YOLO {yolo_model_size.upper()} | {yolo_fps:.1f} FPS | {yolo_inference_ms:.0f}ms | conf>{yolo_confidence:.0%}"
+                if yolo_preprocess:
+                    status += " | CLAHE"
             else:
                 status = "YOLO: NOT INSTALLED"
-            cv2.putText(frame, status, (10, 25), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
 
-            # Encode als JPEG
-            _, jpeg = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
+            # Achtergrond voor status
+            cv2.rectangle(frame, (5, 5), (450, 30), (0, 0, 0), -1)
+            cv2.putText(frame, status, (10, 23), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 1)
+
+            _, jpeg = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 85])
 
             yield (b'--frame\r\n'
                    b'Content-Type: image/jpeg\r\n\r\n' + jpeg.tobytes() + b'\r\n')
 
-            # ~20 FPS voor stream
-            sleep(0.05)
+            sleep(0.04)  # ~25 FPS stream
 
         except Exception as e:
             print(f"Stream error: {e}")
@@ -221,13 +270,13 @@ HTML = '''
             display: flex;
             flex-direction: column;
             align-items: center;
-            padding: 20px;
+            padding: 15px;
             min-height: 100vh;
         }
-        h1 { color: #00d4ff; margin-bottom: 10px; }
+        h1 { color: #00d4ff; margin-bottom: 8px; font-size: 1.4em; }
         .container {
             display: flex;
-            gap: 20px;
+            gap: 15px;
             flex-wrap: wrap;
             justify-content: center;
         }
@@ -243,22 +292,28 @@ HTML = '''
         }
         .controls {
             background: #16213e;
-            padding: 20px;
+            padding: 15px;
             border-radius: 8px;
             border: 2px solid #00d4ff;
-            max-width: 280px;
+            width: 300px;
         }
-        .status {
+        .section {
             background: #0f0f23;
-            padding: 12px;
+            padding: 10px;
             border-radius: 5px;
-            margin-bottom: 15px;
-            font-size: 13px;
+            margin-bottom: 10px;
         }
-        .meter { margin: 5px 0; }
+        .section-title {
+            color: #00d4ff;
+            font-size: 11px;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+        }
+        .meter { margin: 4px 0; }
+        .meter-label { font-size: 12px; }
         .meter-bar {
             background: #333;
-            height: 18px;
+            height: 16px;
             border-radius: 3px;
             overflow: hidden;
         }
@@ -270,147 +325,178 @@ HTML = '''
         .meter-fill.reverse { background: #ff6b6b; }
         .keys {
             display: grid;
-            grid-template-columns: repeat(3, 45px);
-            gap: 4px;
+            grid-template-columns: repeat(3, 40px);
+            gap: 3px;
             justify-content: center;
-            margin-top: 12px;
         }
         .key {
             background: #333;
             border: 2px solid #555;
-            border-radius: 5px;
-            padding: 10px;
+            border-radius: 4px;
+            padding: 8px;
             text-align: center;
             font-weight: bold;
-            font-size: 14px;
+            font-size: 13px;
             transition: all 0.1s;
         }
         .key.active { background: #00d4ff; color: #000; border-color: #00d4ff; }
         .key.empty { visibility: hidden; }
-        .label {
-            text-align: center;
-            color: #888;
-            font-size: 10px;
-            margin: 8px 0 4px 0;
-        }
         .cam-grid {
             display: grid;
-            grid-template-columns: repeat(3, 38px);
-            gap: 3px;
+            grid-template-columns: repeat(3, 36px);
+            gap: 2px;
             justify-content: center;
         }
         .cam-btn {
             background: #333;
             border: 2px solid #555;
-            border-radius: 5px;
-            padding: 6px;
+            border-radius: 4px;
+            padding: 5px;
             color: #eee;
             font-family: monospace;
-            font-size: 12px;
+            font-size: 11px;
             cursor: pointer;
-            transition: all 0.1s;
         }
         .cam-btn:hover { border-color: #00d4ff; }
         .cam-btn:active { background: #00d4ff; color: #000; }
         .btn-row {
             display: flex;
-            gap: 6px;
+            gap: 5px;
             justify-content: center;
-            margin-top: 8px;
+            flex-wrap: wrap;
         }
-        .mode-btn {
-            padding: 8px 14px;
+        .btn {
+            padding: 6px 10px;
             border: 2px solid #555;
-            border-radius: 5px;
+            border-radius: 4px;
             background: #333;
             color: #eee;
             font-family: monospace;
-            font-size: 11px;
+            font-size: 10px;
             cursor: pointer;
-            transition: all 0.2s;
         }
-        .mode-btn:hover { border-color: #00d4ff; }
-        .mode-btn.active { background: #00d4ff; color: #000; border-color: #00d4ff; }
-        .mode-btn.night.active { background: #6b5bff; border-color: #6b5bff; }
-        .mode-btn.yolo.active { background: #44ff44; border-color: #44ff44; color: #000; }
+        .btn:hover { border-color: #00d4ff; }
+        .btn.active { background: #00d4ff; color: #000; border-color: #00d4ff; }
+        .btn.night.active { background: #6b5bff; border-color: #6b5bff; }
+        .btn.yolo.active { background: #44ff44; border-color: #44ff44; color: #000; }
+        .btn.model { min-width: 55px; }
+        .btn.model.active { background: #ff8844; border-color: #ff8844; color: #000; }
+        .slider-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 8px;
+        }
+        .slider-row label { font-size: 10px; color: #888; min-width: 70px; }
+        .slider-row input[type="range"] { flex: 1; }
+        .slider-row span { font-size: 11px; min-width: 35px; color: #00d4ff; }
         .detect-list {
-            background: #0f0f23;
-            padding: 10px;
-            border-radius: 5px;
-            margin-top: 10px;
-            font-size: 11px;
-            max-height: 150px;
+            max-height: 100px;
             overflow-y: auto;
+            font-size: 10px;
+            margin-top: 8px;
         }
         .detect-item {
-            padding: 3px 0;
+            padding: 2px 0;
             border-bottom: 1px solid #333;
+            display: flex;
+            justify-content: space-between;
         }
-        .detect-item:last-child { border-bottom: none; }
         .detect-label { color: #44ff44; }
         .detect-conf { color: #888; }
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 10px;
+            margin-top: 5px;
+        }
+        .info-row span:first-child { color: #888; }
+        .info-row span:last-child { color: #00d4ff; }
     </style>
 </head>
 <body>
-    <h1>PiCar-X + YOLO</h1>
+    <h1>PiCar-X + YOLO (Pi 5)</h1>
     <div class="container">
         <div class="video-box">
             <img id="stream" src="/video_feed" alt="Camera Stream">
         </div>
         <div class="controls">
-            <div class="status">
+            <!-- Driving -->
+            <div class="section">
+                <div class="section-title">Driving (WASD)</div>
                 <div class="meter">
-                    <div>Speed: <span id="speed-val">0</span></div>
+                    <div class="meter-label">Speed: <span id="speed-val">0</span></div>
                     <div class="meter-bar">
                         <div class="meter-fill" id="speed-bar" style="width: 0%"></div>
                     </div>
                 </div>
                 <div class="meter">
-                    <div>Steer: <span id="steer-val">0</span>deg</div>
+                    <div class="meter-label">Steer: <span id="steer-val">0</span>°</div>
                     <div class="meter-bar" style="position: relative;">
                         <div style="position:absolute;left:50%;width:2px;height:100%;background:#fff"></div>
                         <div class="meter-fill" id="steer-bar" style="width: 4px; margin-left: 50%;"></div>
                     </div>
                 </div>
+                <div style="margin-top:8px;">
+                    <div class="keys">
+                        <div class="key empty"></div>
+                        <div class="key" id="key-w">W</div>
+                        <div class="key empty"></div>
+                        <div class="key" id="key-a">A</div>
+                        <div class="key" id="key-s">S</div>
+                        <div class="key" id="key-d">D</div>
+                    </div>
+                </div>
             </div>
 
-            <div class="keys">
-                <div class="key empty"></div>
-                <div class="key" id="key-w">W</div>
-                <div class="key empty"></div>
-                <div class="key" id="key-a">A</div>
-                <div class="key" id="key-s">S</div>
-                <div class="key" id="key-d">D</div>
-            </div>
-            <div class="label">WASD = rijden</div>
-
-            <div class="label">Camera Pan/Tilt (of IJKL)</div>
-            <div class="cam-grid">
-                <div class="key empty"></div>
-                <button class="cam-btn" onclick="camTilt(5)">Up</button>
-                <div class="key empty"></div>
-                <button class="cam-btn" onclick="camPan(-5)">L</button>
-                <button class="cam-btn" onclick="camCenter()" style="font-size:9px">CTR</button>
-                <button class="cam-btn" onclick="camPan(5)">R</button>
-                <div class="key empty"></div>
-                <button class="cam-btn" onclick="camTilt(-5)">Dn</button>
-                <div class="key empty"></div>
-            </div>
-            <div class="label">Pan: <span id="pan-val">0</span> | Tilt: <span id="tilt-val">0</span></div>
-
-            <div class="label">Camera Mode</div>
-            <div class="btn-row">
-                <button class="mode-btn night" id="btn-night" onclick="setMode('night')">Night</button>
-                <button class="mode-btn day" id="btn-day" onclick="setMode('day')">Day</button>
+            <!-- Camera -->
+            <div class="section">
+                <div class="section-title">Camera (IJKL)</div>
+                <div class="cam-grid">
+                    <div class="key empty"></div>
+                    <button class="cam-btn" onclick="camTilt(5)">Up</button>
+                    <div class="key empty"></div>
+                    <button class="cam-btn" onclick="camPan(-5)">L</button>
+                    <button class="cam-btn" onclick="camCenter()">C</button>
+                    <button class="cam-btn" onclick="camPan(5)">R</button>
+                    <div class="key empty"></div>
+                    <button class="cam-btn" onclick="camTilt(-5)">Dn</button>
+                    <div class="key empty"></div>
+                </div>
+                <div class="info-row">
+                    <span>Pan/Tilt:</span>
+                    <span><span id="pan-val">0</span>° / <span id="tilt-val">0</span>°</span>
+                </div>
+                <div class="btn-row" style="margin-top:8px;">
+                    <button class="btn night" id="btn-night" onclick="setMode('night')">Night</button>
+                    <button class="btn day" id="btn-day" onclick="setMode('day')">Day</button>
+                </div>
             </div>
 
-            <div class="label">YOLO Detection</div>
-            <div class="btn-row">
-                <button class="mode-btn yolo" id="btn-yolo" onclick="toggleYolo()">YOLO ON</button>
-            </div>
-
-            <div class="detect-list" id="detect-list">
-                <div style="color:#888">Waiting for detections...</div>
+            <!-- YOLO Settings -->
+            <div class="section">
+                <div class="section-title">YOLO Detection</div>
+                <div class="btn-row">
+                    <button class="btn yolo" id="btn-yolo" onclick="toggleYolo()">YOLO ON</button>
+                    <button class="btn" id="btn-clahe" onclick="toggleClahe()">CLAHE ON</button>
+                </div>
+                <div class="btn-row" style="margin-top:6px;">
+                    <button class="btn model" id="btn-nano" onclick="setModel('nano')">Nano</button>
+                    <button class="btn model" id="btn-small" onclick="setModel('small')">Small</button>
+                    <button class="btn model" id="btn-medium" onclick="setModel('medium')">Medium</button>
+                </div>
+                <div class="slider-row">
+                    <label>Confidence:</label>
+                    <input type="range" id="conf-slider" min="10" max="80" value="35" oninput="setConfidence(this.value)">
+                    <span id="conf-val">35%</span>
+                </div>
+                <div class="info-row">
+                    <span>Performance:</span>
+                    <span><span id="yolo-fps">0</span> FPS / <span id="yolo-ms">0</span>ms</span>
+                </div>
+                <div class="detect-list" id="detect-list">
+                    <div style="color:#888">Waiting...</div>
+                </div>
             </div>
         </div>
     </div>
@@ -484,6 +570,27 @@ HTML = '''
             fetch('/yolo/toggle', {method: 'POST'});
         }
 
+        function toggleClahe() {
+            fetch('/yolo/clahe', {method: 'POST'});
+        }
+
+        function setModel(size) {
+            fetch('/yolo/model', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({size: size})
+            });
+        }
+
+        function setConfidence(val) {
+            document.getElementById('conf-val').textContent = val + '%';
+            fetch('/yolo/confidence', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({confidence: val / 100})
+            });
+        }
+
         setInterval(async () => {
             const resp = await fetch('/status');
             const data = await resp.json();
@@ -509,33 +616,48 @@ HTML = '''
             yoloBtn.classList.toggle('active', data.yolo_enabled);
             yoloBtn.textContent = data.yolo_enabled ? 'YOLO ON' : 'YOLO OFF';
 
-            // Detection list
+            const claheBtn = document.getElementById('btn-clahe');
+            claheBtn.classList.toggle('active', data.yolo_preprocess);
+            claheBtn.textContent = data.yolo_preprocess ? 'CLAHE ON' : 'CLAHE OFF';
+
+            ['nano', 'small', 'medium'].forEach(m => {
+                document.getElementById('btn-' + m).classList.toggle('active', data.yolo_model === m);
+            });
+
+            document.getElementById('yolo-fps').textContent = data.yolo_fps.toFixed(1);
+            document.getElementById('yolo-ms').textContent = data.yolo_ms.toFixed(0);
+
             const list = document.getElementById('detect-list');
             if (data.detections.length === 0) {
                 list.innerHTML = '<div style="color:#888">No objects detected</div>';
             } else {
-                list.innerHTML = data.detections.map(d =>
-                    `<div class="detect-item"><span class="detect-label">${d.label}</span> <span class="detect-conf">${(d.confidence * 100).toFixed(0)}%</span></div>`
+                list.innerHTML = data.detections.slice(0, 10).map(d =>
+                    `<div class="detect-item"><span class="detect-label">${d.label}</span><span class="detect-conf">${(d.confidence * 100).toFixed(0)}%</span></div>`
                 ).join('');
             }
         }, 200);
 
+        // Init
         document.getElementById('btn-night').classList.add('active');
         document.getElementById('btn-yolo').classList.add('active');
+        document.getElementById('btn-clahe').classList.add('active');
+        document.getElementById('btn-small').classList.add('active');
     </script>
 </body>
 </html>
 '''
 
+
 @app.route('/')
 def index():
     return render_template_string(HTML)
 
+
 @app.route('/video_feed')
 def video_feed():
-    """MJPEG stream met YOLO overlay"""
     return Response(generate_frames(),
                     mimetype='multipart/x-mixed-replace; boundary=frame')
+
 
 @app.route('/keys', methods=['POST'])
 def update_keys():
@@ -543,6 +665,7 @@ def update_keys():
     data = request.json
     keys = set(data.get('keys', []))
     return jsonify({'ok': True})
+
 
 @app.route('/camera_mode', methods=['POST'])
 def set_camera_mode():
@@ -568,6 +691,7 @@ def set_camera_mode():
 
     return jsonify({'ok': True, 'mode': mode})
 
+
 @app.route('/status')
 def status():
     with yolo_lock:
@@ -582,14 +706,62 @@ def status():
         'yolo_enabled': yolo_enabled,
         'yolo_available': YOLO_AVAILABLE,
         'yolo_fps': yolo_fps,
+        'yolo_ms': yolo_inference_ms,
+        'yolo_model': yolo_model_size,
+        'yolo_preprocess': yolo_preprocess,
+        'yolo_confidence': yolo_confidence,
         'detections': detections
     })
+
 
 @app.route('/yolo/toggle', methods=['POST'])
 def toggle_yolo():
     global yolo_enabled
     yolo_enabled = not yolo_enabled
     return jsonify({'ok': True, 'enabled': yolo_enabled})
+
+
+@app.route('/yolo/clahe', methods=['POST'])
+def toggle_clahe():
+    global yolo_preprocess
+    yolo_preprocess = not yolo_preprocess
+    return jsonify({'ok': True, 'enabled': yolo_preprocess})
+
+
+@app.route('/yolo/confidence', methods=['POST'])
+def set_confidence():
+    global yolo_confidence
+    data = request.json
+    yolo_confidence = max(0.1, min(0.9, data.get('confidence', 0.35)))
+    return jsonify({'ok': True, 'confidence': yolo_confidence})
+
+
+@app.route('/yolo/model', methods=['POST'])
+def change_model():
+    global yolo_model, yolo_model_size, current_model_name
+
+    if not YOLO_AVAILABLE:
+        return jsonify({'ok': False, 'error': 'YOLO not available'})
+
+    data = request.json
+    size = data.get('size', 'small')
+
+    if size not in AVAILABLE_MODELS:
+        return jsonify({'ok': False, 'error': 'Invalid model size'})
+
+    try:
+        model_file = AVAILABLE_MODELS[size]
+        print(f"Loading model: {model_file}")
+        from ultralytics import YOLO
+        yolo_model = YOLO(model_file)
+        yolo_model_size = size
+        current_model_name = model_file
+        print(f"Model {size} loaded!")
+        return jsonify({'ok': True, 'model': size})
+    except Exception as e:
+        print(f"Model load error: {e}")
+        return jsonify({'ok': False, 'error': str(e)})
+
 
 @app.route('/camera/pan', methods=['POST'])
 def set_pan():
@@ -601,6 +773,7 @@ def set_pan():
     px.set_cam_pan_angle(int(cam_pan))
     return jsonify({'ok': True, 'pan': cam_pan})
 
+
 @app.route('/camera/tilt', methods=['POST'])
 def set_tilt():
     global cam_tilt
@@ -611,6 +784,7 @@ def set_tilt():
     px.set_cam_tilt_angle(int(cam_tilt))
     return jsonify({'ok': True, 'tilt': cam_tilt})
 
+
 @app.route('/camera/center', methods=['POST'])
 def center_camera():
     global cam_pan, cam_tilt
@@ -620,11 +794,11 @@ def center_camera():
     px.set_cam_tilt_angle(0)
     return jsonify({'ok': True})
 
+
 def physics_loop():
     global speed, steer_angle, cam_pan, cam_tilt
 
     while True:
-        # === GAS / REM ===
         if 'w' in keys:
             speed += ACCELERATION
             if speed > MAX_SPEED:
@@ -648,7 +822,6 @@ def physics_loop():
                 if speed > 0:
                     speed = 0
 
-        # === STUREN ===
         if 'a' in keys:
             steer_angle -= STEER_SPEED
             if steer_angle < -MAX_STEER:
@@ -667,7 +840,6 @@ def physics_loop():
                 if steer_angle > 0:
                     steer_angle = 0
 
-        # === CAMERA via keyboard ===
         if 'i' in keys:
             cam_tilt += 2
             if cam_tilt > 30:
@@ -685,7 +857,6 @@ def physics_loop():
             if cam_pan > 30:
                 cam_pan = 30
 
-        # === APPLY TO CAR ===
         px.set_dir_servo_angle(int(steer_angle))
         px.set_cam_pan_angle(int(cam_pan))
         px.set_cam_tilt_angle(int(cam_tilt))
@@ -699,6 +870,7 @@ def physics_loop():
 
         sleep(0.05)
 
+
 def get_ip():
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
@@ -710,6 +882,7 @@ def get_ip():
         s.close()
     return ip
 
+
 def apply_camera_preset(preset):
     try:
         Vilib.set_controls({'AeEnable': preset['AeEnable']})
@@ -720,21 +893,18 @@ def apply_camera_preset(preset):
     except Exception as e:
         print(f"Camera preset error: {e}")
 
+
 if __name__ == '__main__':
-    # Start camera via vilib (die doet de picamera2 setup)
     print("Starting camera...")
     Vilib.camera_start(vflip=False, hflip=False)
-    Vilib.display(local=False, web=False)  # We maken onze eigen stream
+    Vilib.display(local=False, web=False)
     sleep(2)
 
-    # Apply night mode settings
     apply_camera_preset(NIGHT_MODE)
 
-    # Start physics loop
     physics_thread = Thread(target=physics_loop, daemon=True)
     physics_thread.start()
 
-    # Start YOLO detection loop (als beschikbaar)
     if YOLO_AVAILABLE:
         yolo_thread = Thread(target=yolo_detection_loop, daemon=True)
         yolo_thread.start()
@@ -744,6 +914,7 @@ if __name__ == '__main__':
     print(f"\n" + "="*50)
     print(f"  Open in browser: http://{ip}:5000")
     print(f"  YOLO: {'ENABLED' if YOLO_AVAILABLE else 'NOT INSTALLED'}")
+    print(f"  Model: {current_model_name}")
     print(f"="*50 + "\n")
 
     try:
