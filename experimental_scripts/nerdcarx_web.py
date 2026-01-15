@@ -25,13 +25,19 @@ import cv2
 # === YOLO SETUP ===
 YOLO_AVAILABLE = False
 yolo_model = None
-current_model_name = 'yolov8s.pt'  # Default: small model voor Pi 5
+current_model_name = 'yolo11s.pt'  # Default: v11 small - beste balans
 
 # Beschikbare modellen (voor Pi 5 16GB)
+# YOLOv11 is nieuwer, lichter EN accurater dan v8
 AVAILABLE_MODELS = {
-    'nano': 'yolov8n.pt',    # ~6MB, ~5-8 FPS, minst accuraat
-    'small': 'yolov8s.pt',   # ~22MB, ~3-5 FPS, goed compromis
-    'medium': 'yolov8m.pt',  # ~52MB, ~1-3 FPS, meest accuraat
+    # YOLOv11 - aanbevolen (nieuwer, beter)
+    'v11-nano': 'yolo11n.pt',    # ~5MB, snelste, 39.5% mAP
+    'v11-small': 'yolo11s.pt',   # ~19MB, goed compromis, 47.0% mAP
+    'v11-medium': 'yolo11m.pt',  # ~39MB, accuraat, 51.5% mAP
+    # YOLOv8 - oudere versie
+    'v8-nano': 'yolov8n.pt',     # ~6MB, 37.3% mAP
+    'v8-small': 'yolov8s.pt',    # ~22MB, 44.9% mAP
+    'v8-medium': 'yolov8m.pt',   # ~52MB, 50.2% mAP
 }
 
 try:
@@ -59,7 +65,7 @@ yolo_enabled = True
 # === YOLO SETTINGS ===
 yolo_confidence = 0.35      # Lagere threshold voor betere detectie
 yolo_preprocess = True      # CLAHE preprocessing aan/uit
-yolo_model_size = 'small'   # nano/small/medium
+yolo_model_size = 'v11-small'  # v11-nano/v11-small/v11-medium/v8-nano/v8-small/v8-medium
 
 # === YOLO DETECTION STATE ===
 yolo_detections = []
@@ -379,8 +385,9 @@ HTML = '''
         .btn.active { background: #00d4ff; color: #000; border-color: #00d4ff; }
         .btn.night.active { background: #6b5bff; border-color: #6b5bff; }
         .btn.yolo.active { background: #44ff44; border-color: #44ff44; color: #000; }
-        .btn.model { min-width: 55px; }
-        .btn.model.active { background: #ff8844; border-color: #ff8844; color: #000; }
+        .btn.model { min-width: 60px; font-size: 9px; }
+        .btn.model.v11.active { background: #44ff88; border-color: #44ff88; color: #000; }
+        .btn.model.v8.active { background: #ff8844; border-color: #ff8844; color: #000; }
         .slider-row {
             display: flex;
             align-items: center;
@@ -480,15 +487,26 @@ HTML = '''
                     <button class="btn yolo" id="btn-yolo" onclick="toggleYolo()">YOLO ON</button>
                     <button class="btn" id="btn-clahe" onclick="toggleClahe()">CLAHE ON</button>
                 </div>
-                <div class="btn-row" style="margin-top:6px;">
-                    <button class="btn model" id="btn-nano" onclick="setModel('nano')">Nano</button>
-                    <button class="btn model" id="btn-small" onclick="setModel('small')">Small</button>
-                    <button class="btn model" id="btn-medium" onclick="setModel('medium')">Medium</button>
+                <div style="margin-top:8px;font-size:9px;color:#888;text-align:center;">YOLOv11 (aanbevolen)</div>
+                <div class="btn-row" style="margin-top:4px;">
+                    <button class="btn model v11" id="btn-v11-nano" onclick="setModel('v11-nano')">v11 Nano</button>
+                    <button class="btn model v11" id="btn-v11-small" onclick="setModel('v11-small')">v11 Small</button>
+                    <button class="btn model v11" id="btn-v11-medium" onclick="setModel('v11-medium')">v11 Med</button>
+                </div>
+                <div style="margin-top:6px;font-size:9px;color:#666;text-align:center;">YOLOv8 (ouder)</div>
+                <div class="btn-row" style="margin-top:4px;">
+                    <button class="btn model v8" id="btn-v8-nano" onclick="setModel('v8-nano')">v8 Nano</button>
+                    <button class="btn model v8" id="btn-v8-small" onclick="setModel('v8-small')">v8 Small</button>
+                    <button class="btn model v8" id="btn-v8-medium" onclick="setModel('v8-medium')">v8 Med</button>
                 </div>
                 <div class="slider-row">
                     <label>Confidence:</label>
                     <input type="range" id="conf-slider" min="10" max="80" value="35" oninput="setConfidence(this.value)">
                     <span id="conf-val">35%</span>
+                </div>
+                <div class="info-row">
+                    <span>Model:</span>
+                    <span id="current-model">v11-small</span>
                 </div>
                 <div class="info-row">
                     <span>Performance:</span>
@@ -620,9 +638,13 @@ HTML = '''
             claheBtn.classList.toggle('active', data.yolo_preprocess);
             claheBtn.textContent = data.yolo_preprocess ? 'CLAHE ON' : 'CLAHE OFF';
 
-            ['nano', 'small', 'medium'].forEach(m => {
-                document.getElementById('btn-' + m).classList.toggle('active', data.yolo_model === m);
+            // Update model buttons
+            const models = ['v11-nano', 'v11-small', 'v11-medium', 'v8-nano', 'v8-small', 'v8-medium'];
+            models.forEach(m => {
+                const btn = document.getElementById('btn-' + m);
+                if (btn) btn.classList.toggle('active', data.yolo_model === m);
             });
+            document.getElementById('current-model').textContent = data.yolo_model;
 
             document.getElementById('yolo-fps').textContent = data.yolo_fps.toFixed(1);
             document.getElementById('yolo-ms').textContent = data.yolo_ms.toFixed(0);
@@ -641,7 +663,7 @@ HTML = '''
         document.getElementById('btn-night').classList.add('active');
         document.getElementById('btn-yolo').classList.add('active');
         document.getElementById('btn-clahe').classList.add('active');
-        document.getElementById('btn-small').classList.add('active');
+        document.getElementById('btn-v11-small').classList.add('active');
     </script>
 </body>
 </html>
