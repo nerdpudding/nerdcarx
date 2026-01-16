@@ -172,10 +172,11 @@ tts:
   # GETESTE CONFIGURATIES (2026-01-16):
   #   temp=0.2, top_p=0.5  → te saai, monotoon
   #   temp=0.3, top_p=0.6  → meer leven, maar uitspraak slechter
-  #   temp=0.4, top_p=0.55 → beste compromis (huidige keuze)
+  #   temp=0.4, top_p=0.55 → beste compromis (oude 10s reference)
+  #   temp=0.5, top_p=0.6  → test met nieuwe 30s reference
   #
-  temperature: 0.4  # Expressiviteit - verhoog voor meer intonatie
-  top_p: 0.55       # Diversiteit - verhoog voorzichtig voor meer variatie
+  temperature: 0.5  # Expressiviteit - verhoog voor meer intonatie
+  top_p: 0.6        # Diversiteit - verhoog voorzichtig voor meer variatie
 
   # Output format
   format: "wav"
