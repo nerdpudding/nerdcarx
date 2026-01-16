@@ -1,7 +1,7 @@
 # Fase 1: Openstaande Punten
 
-**Datum:** 2026-01-11
-**Status:** Plan voor review
+**Datum:** 2026-01-16
+**Status:** In uitvoering
 
 ---
 
@@ -9,8 +9,8 @@
 
 | # | Issue | Prioriteit | Status |
 |---|-------|------------|--------|
-| 1 | TTS klinkt soms Engelserig | Hoog | Onderzoeken |
-| 2 | Text normalisatie (nieuw!) | Hoog | Implementeren |
+| 1 | TTS klinkt soms Engelserig | Hoog | ✅ Deels opgelost |
+| 2 | Text normalisatie (nieuw!) | Hoog | Volgende |
 | 3 | Temperature/top_p tuning | Hoog | Testen |
 | 4 | Langere reference audio | Medium | Optioneel |
 | 5 | Prosody/expressie markers | Laag | Optioneel |
@@ -22,41 +22,29 @@
 - ~~Voxtral NL taal~~ - Al gedaan (`language: 'nl'` in vad_conversation.py:110)
 - ~~Context sliding window~~ - Geen actueel probleem
 - ~~Noise removal~~ - ElevenLabs audio is al clean
-- ~~Korte zinnen~~ - Lengte is geen probleem voor latency
+- ~~Korte zinnen~~ - Opgelost via system prompt (2026-01-16)
 
 ---
 
 ## 1. TTS Klinkt Soms Engelserig
 
-### Probleem
-Via orchestrator klinkt TTS soms met Engels accent, terwijl standalone tests goed klinken.
+### Status: ✅ Deels opgelost (2026-01-16)
 
-### Mogelijke oorzaak
-LLM gebruikt soms Engelse woorden/zinstructuren die TTS beïnvloeden.
+**Uitgevoerd:**
+- System prompt aangepast met "Gebruik bij voorkeur Nederlandse woorden"
+- Korte antwoorden (1-3 zinnen) in plaats van lange teksten
+- Geen markdown formatting (geen **, -, of genummerde lijsten)
+- Robot capabilities en beperkingen toegevoegd aan prompt
 
-### Aanbevolen actie
+**Nog te doen:**
+- Text normalisatie (punt 2) voor acroniemen en getallen
+- Optioneel: temperature/top_p tuning (punt 3)
 
-**Optie A: Prompt toevoegen** (5 min)
-```yaml
-# config.yml - toevoegen aan system_prompt
-Gebruik bij voorkeur Nederlandse woorden. Vermijd onnodige Engelse termen.
-```
-
-**Optie B: Temperature/top_p tuning** (zie punt 2)
-
-**Optie C: Langere reference audio** (zie punt 3)
-
-**Optie D: Fine-tuning** (voor later, 2-4 uur)
-- ~30 min NL audio met transcripties
-- Training: 1-2 uur op RTX 4090
-- Overwegen als A, B en C niet voldoende helpen
-
-### Debug tip
-Log exact de tekst die naar TTS gaat en vergelijk met standalone tests:
-```python
-# orchestrator/main.py - synthesize_speech()
-print(f"[TTS INPUT] {text}")  # Voeg toe voor debugging
-```
+### Oorspronkelijk probleem
+Via orchestrator klonk TTS soms met Engels accent door:
+- LLM die Engelse woorden/zinstructuren gebruikte
+- Markdown formatting die TTS niet kon uitspreken
+- Te lange antwoorden met opsommingen
 
 ---
 
