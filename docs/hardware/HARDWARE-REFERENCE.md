@@ -32,7 +32,7 @@ Dit document bevat de volledige hardware configuratie voor NerdCarX, inclusief p
 
 | Component | Interface | Pin/Bus | Status |
 |-----------|-----------|---------|--------|
-| Camera Module 3 (IMX708) | CSI | CSI port | **Te bestellen** |
+| Camera Module 3 (IMX708) | CSI | CSI port | **Besteld** |
 | Camera OV5647 | CSI | CSI port | Geïnstalleerd (wordt vervangen) |
 | Ultrasonic HC-SR04 | Digital | D2 (trig), D3 (echo) | Geïnstalleerd |
 | Grayscale Module | ADC | A0, A1, A2 | Geïnstalleerd |
