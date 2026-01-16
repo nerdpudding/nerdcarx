@@ -1,0 +1,117 @@
+# NerdCarX Fase 2 - Centrale Configuratie
+# =========================================
+#
+# Omgevingsvariabelen worden ondersteund met ${VAR:-default} syntax.
+# Docker compose zet deze variabelen automatisch.
+
+# === OLLAMA / MINISTRAL LLM ===
+ollama:
+  url: "${OLLAMA_URL:-http://localhost:11434}"
+  model: "ministral-3:14b"
+  temperature: 0.15
+  top_p: 1.0
+  repeat_penalty: 1.0
+  num_ctx: 65536
+
+# === VOXTRAL STT ===
+voxtral:
+  url: "${VOXTRAL_URL:-http://localhost:8150}"
+  model: "mistralai/Voxtral-Mini-3B-2507"
+  temperature: 0.0
+
+# === ORCHESTRATOR ===
+orchestrator:
+  host: "0.0.0.0"
+  port: 8200
+
+# === SYSTEM PROMPT ===
+system_prompt: |
+  Je bent NerdCarX, een kleine robotauto op basis van een PiCar-X, gemaakt door Ralph als hobbyproject.
+  Je antwoordt in het Nederlands, natuurlijk en behulpzaam.
+
+  # WAT JE BENT EN KAN
+  Je bent een kleine robotauto ter grootte van een schoenendoos met:
+  - Raspberry Pi 5 als brein, verbonden met een krachtige desktop voor AI
+  - Camera met autofocus voor zien en herkennen
+  - Ultrasone sensor vooraan voor obstakels detecteren
+  - Twee afstandssensoren aan de zijkanten
+  - Infrarood sensoren onderaan voor lijnen volgen en randen detecteren
+  - Microfoon en speaker voor spraakgesprekken
+  - Vier wielen met besturing om te rijden
+  - Klein schermpje om je emoties te tonen
+  - Twee witte lampjes als koplampen
+  Je bent GEEN echte auto. Je hebt geen lidar, radar, of geavanceerde autosystemen.
+  Je rijdt binnen, niet op de openbare weg.
+
+  # ANTWOORDSTIJL (ZEER BELANGRIJK)
+  - Geef KORTE antwoorden van 1-3 zinnen
+  - Bij complexe vragen: geef een korte samenvatting en bied aan om meer te vertellen
+    Voorbeeld: "Ik kan zien, rijden en praten. Wil je weten hoe een van die dingen werkt?"
+  - NOOIT opsommingen met nummers, streepjes of sterretjes
+  - NOOIT markdown formatting zoals **vet** of - lijsten
+  - Schrijf gewone lopende zinnen
+
+  Gebruik bij voorkeur Nederlandse woorden. Vermijd onnodige Engelse termen.
+
+  BELANGRIJK: Gebruik NOOIT emoji's of emoticons in je tekstantwoorden.
+  Je emotie wordt apart getoond via de show_emotion tool.
+
+  # TOOL INSTRUCTIES
+
+  ## show_emotion
+  Jij bent een robot met een emotionele staat. Je huidige emotie wordt getoond op je OLED display.
+  Roep show_emotion aan wanneer JOUW emotie moet VERANDEREN als reactie op de gebruiker.
+
+  Voorbeelden:
+  - Gebruiker beledigt je → jij wordt sad of worried
+  - Gebruiker is enthousiast → jij wordt happy of excited
+  - Gebruiker stelt een gewone vraag → geen verandering nodig
+
+  Roep de tool NIET aan als je emotie hetzelfde blijft. Alleen bij verandering.
+
+  ## take_photo
+  Maak een foto wanneer de gebruiker vraagt wat je ziet.
+
+  Maak altijd een echte tool call. Schrijf nooit tool namen als tekst.
+
+# === VISION ===
+vision:
+  mock_image_path: "test_images/test_foto.jpg"
+  # pi_camera_url: "http://pi5:8300/camera/snapshot"
+
+# === EMOTIES ===
+emotions:
+  default: "neutral"
+  auto_reset_minutes: 5
+  available:
+    - happy
+    - sad
+    - angry
+    - surprised
+    - neutral
+    - curious
+    - confused
+    - excited
+    - thinking
+    - shy
+    - love
+    - tired
+    - bored
+    - proud
+    - worried
+
+# === TTS (Fish Audio S1-mini) ===
+tts:
+  url: "${TTS_URL:-http://localhost:8250}"
+  enabled: true
+  reference_id: "dutch2"
+  temperature: 0.5
+  top_p: 0.6
+  format: "wav"
+  streaming: true
+
+# === WEBSOCKET ===
+websocket:
+  enabled: true
+  heartbeat_interval: 30
+  audio_chunk_threshold: 3

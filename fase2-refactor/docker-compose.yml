@@ -1,0 +1,95 @@
+# NerdCarX Fase 2 - Docker Compose
+#
+# Gebruik:
+#   docker compose up -d            # Start alle services
+#   docker compose up -d --build    # Rebuild en start
+#   docker compose logs -f          # Volg logs
+#   docker compose down             # Stop alle services
+#
+# Note: Ollama draait NIET in deze compose - het draait al extern:
+#   docker run -d --gpus device=0 -v ollama:/root/.ollama -p 11434:11434 \
+#     --name ollama-nerdcarx -e OLLAMA_KV_CACHE_TYPE=q8_0 -e OLLAMA_KEEP_ALIVE=-1 ollama/ollama
+
+services:
+  # Voxtral STT - Speech-to-Text via vLLM
+  voxtral:
+    build: ./stt-voxtral/docker
+    image: nerdcarx/vllm-voxtral:latest
+    container_name: nerdcarx-voxtral
+    ports:
+      - "8150:8000"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ['1']  # GPU1 - RTX 5070 Ti
+              capabilities: [gpu]
+    volumes:
+      - ~/.cache/huggingface:/root/.cache/huggingface
+    ipc: host
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 180s
+    restart: unless-stopped
+
+  # Fish Audio TTS - Text-to-Speech
+  tts:
+    image: fishaudio/fish-speech:latest
+    container_name: nerdcarx-tts
+    ports:
+      - "8250:8080"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ['0']  # GPU0 - RTX 4090
+              capabilities: [gpu]
+    volumes:
+      - fish-checkpoints:/app/checkpoints
+      - ./tts/fishaudio/references:/app/references
+    entrypoint: uv
+    command: run tools/api_server.py --listen 0.0.0.0:8080 --compile
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+    restart: unless-stopped
+
+  # Orchestrator - Main API
+  orchestrator:
+    build: ./orchestrator
+    image: nerdcarx/orchestrator:latest
+    container_name: nerdcarx-orchestrator
+    ports:
+      - "8200:8200"
+    volumes:
+      - ./config.yml:/app/config.yml:ro
+    environment:
+      - OLLAMA_URL=http://host.docker.internal:11434
+      - VOXTRAL_URL=http://voxtral:8000
+      - TTS_URL=http://tts:8080
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      voxtral:
+        condition: service_healthy
+      tts:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8200/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+volumes:
+  fish-checkpoints:
+    name: nerdcarx-fish-checkpoints

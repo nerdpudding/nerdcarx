@@ -1,0 +1,72 @@
+# Voxtral Mini STT via vLLM
+#
+# Gebruik:
+#   docker compose build      # Bouw custom image (eerste keer)
+#   docker compose up -d      # Start
+#   docker compose logs -f    # Bekijk logs
+#   docker compose down       # Stop
+#
+# Model: mistralai/Voxtral-Mini-3B-2507 (origineel, ~9.5GB VRAM)
+# API: OpenAI-compatible op poort 8150
+# Note: Custom Dockerfile installeert audio dependencies (soundfile, ffmpeg)
+
+services:
+  voxtral:
+    # Custom image met audio dependencies (soundfile, ffmpeg)
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: nerdcarx/vllm-voxtral:latest
+    container_name: nerdcarx-voxtral
+
+    # GPU configuratie - GPU1 (RTX 5070 Ti)
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ['1']
+              capabilities: [gpu]
+
+    # Poort: OpenAI-compatible API op 8150
+    ports:
+      - "8150:8000"
+
+    # Volumes: HF cache voor model download
+    volumes:
+      - ~/.cache/huggingface:/root/.cache/huggingface
+
+    # IPC voor shared memory (nodig voor grote modellen)
+    ipc: host
+
+    # vLLM configuratie - officieel aanbevolen door Mistral
+    # Bron: https://huggingface.co/mistralai/Voxtral-Mini-3B-2507#vllm-recommended
+    command: >
+      --model mistralai/Voxtral-Mini-3B-2507
+      --tokenizer_mode mistral
+      --config_format mistral
+      --load_format mistral
+      --host 0.0.0.0
+      --port 8000
+      --max-model-len 4096
+      --gpu-memory-utilization 0.75
+
+    # Health check
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 180s  # Model download + laden duurt even
+
+    # Restart policy
+    restart: unless-stopped
+
+# Notities:
+# - Model wordt automatisch gedownload bij eerste start (~12GB)
+# - VRAM gebruik: ~9.5GB (bf16/fp16)
+# - max-model-len 4096: Balans tussen VRAM en audio context
+# - gpu-memory-utilization 0.90: Laat 10% VRAM over voor overhead
+#
+# TODO: Later onderzoeken of dit op GPU1 (5070 Ti) kan draaien
+# Mogelijke issues: Blackwell compatibiliteit, lagere performance

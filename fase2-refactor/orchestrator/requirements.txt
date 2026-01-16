@@ -1,0 +1,21 @@
+# NerdCarX Orchestrator - Dependencies
+# Python 3.11+
+
+# Web framework
+fastapi>=0.109.0
+uvicorn[standard]>=0.27.0
+
+# HTTP client
+httpx>=0.26.0
+
+# Data validation
+pydantic>=2.5.0
+
+# Config
+pyyaml>=6.0
+
+# Text normalization
+num2words>=0.5.13
+
+# WebSocket support (included in uvicorn[standard])
+websockets>=12.0

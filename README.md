@@ -179,7 +179,7 @@ Een interactieve AI-gestuurde robotauto bouwen die:
 |------|------|--------------|--------|
 | 0 | [Concept](archive/0.concept/) | Ontwerp en voorbereiding | Gearchiveerd |
 | 1 | [Desktop Compleet](fase1-desktop/) | STT + LLM + Vision + Tools + TTS | ✅ Afgerond |
-| 2 | [Refactor + Docker](fase2-refactor/) | Code cleanup, dockerizen, SOLID/KISS | **Actief** |
+| 2 | [Refactor + Docker](fase2-refactor/) | Modulaire orchestrator, Docker Compose, WebSocket | **Actief** |
 | 3 | [Pi Integratie](fase3-pi/) | Hardware, Camera Module 3, YOLO safety, opt. SLAM | Gepland |
 | 4 | [Autonomie](fase4-autonomie/) | Idle behaviors, SLAM, pose detectie | Gepland |
 
@@ -222,7 +222,14 @@ nerdcarx/
 │       └── README.md
 │
 ├── fase2-refactor/                    # Fase 2: Refactor + Docker
-│   └── PLAN.md
+│   ├── README.md                      # Setup guide
+│   ├── PLAN.md                        # Implementatieplan
+│   ├── docker-compose.yml             # Volledige stack
+│   ├── config.yml                     # Centrale config
+│   ├── orchestrator/                  # Modulaire FastAPI app
+│   ├── stt-voxtral/                   # Voxtral Docker setup
+│   ├── llm-ministral/                 # Ollama instructies
+│   └── tts/fishaudio/                 # Voice references
 │
 ├── fase3-pi/                          # Fase 3: Pi Integratie
 │   └── PLAN.md
@@ -242,6 +249,26 @@ nerdcarx/
 ```
 
 ## Quick Start
+
+### Fase 2 (Docker - aanbevolen)
+
+```bash
+# Zie fase2-refactor/README.md voor complete instructies
+
+# 1. Start Ollama (draait extern)
+docker start ollama-nerdcarx
+# Of eerste keer: zie fase2-refactor/llm-ministral/README.md
+
+# 2. Start volledige stack
+cd fase2-refactor
+docker compose up -d
+
+# 3. Test
+curl http://localhost:8200/health
+curl http://localhost:8200/status
+```
+
+### Fase 1 (Legacy - conda)
 
 ```bash
 # Zie fase1-desktop/README.md voor complete instructies

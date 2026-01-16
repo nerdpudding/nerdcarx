@@ -505,6 +505,53 @@ Definitieve hardware configuratie voor NerdCarX. LiDAR is out of scope (te duur,
 
 ---
 
+### D013: Fase 2 Architectuur - Modulaire Orchestrator + WebSocket
+
+**Datum:** 2026-01-16
+**Fase:** 2
+**Status:** ✅ Geïmplementeerd
+
+**Besluit:**
+Volledige refactor van orchestrator naar modulaire structuur met Docker Compose.
+
+**Architectuur keuzes:**
+
+| Aspect | Keuze | Rationale |
+|--------|-------|-----------|
+| **Service abstractie** | Protocol pattern (niet ABC) | Lichter, duck typing, makkelijk te mocken |
+| **Config** | Dataclasses + env var expansion | Type-safe, ${VAR:-default} voor Docker |
+| **WebSocket** | Native FastAPI WebSocket | Pi ↔ Desktop real-time communicatie |
+| **Docker** | Multi-service compose | Voxtral + TTS + Orchestrator in één stack |
+
+**Folder structuur:**
+```
+orchestrator/app/
+├── main.py           # FastAPI entry (slim)
+├── config.py         # Config loading + env vars
+├── routes/           # health, chat, websocket
+├── services/         # STT, LLM, TTS, Tools (Protocol-based)
+├── models/           # Pydantic schemas, emotion, conversation
+├── websocket/        # Protocol, manager, handlers
+└── utils/            # Text normalization
+```
+
+**WebSocket Protocol:**
+- Pi → Desktop: `audio_process`, `wake_word`, `heartbeat`, `sensor_update`
+- Desktop → Pi: `response`, `audio_chunk`, `function_call`, `error`
+
+**Docker Compose services:**
+| Service | Port | GPU |
+|---------|------|-----|
+| voxtral | 8150 | GPU1 |
+| tts | 8250 | GPU0 |
+| orchestrator | 8200 | CPU |
+
+Note: Ollama draait extern (niet in compose) om resource conflicts te vermijden.
+
+**Referentie:** [fase2-refactor/README.md](fase2-refactor/README.md)
+
+---
+
 ## Open vragen
 
 > Vragen die nog beantwoord moeten worden tijdens implementatie.
@@ -538,7 +585,8 @@ Definitieve hardware configuratie voor NerdCarX. LiDAR is out of scope (te duur,
 | D010 | Camera Module 3 | 2026-01-16 | Gepland |
 | D011 | 4-Laags Perceptie Architectuur | 2026-01-16 | Gepland |
 | D012 | Hardware Uitbreiding (ToF, LEDs, OLED) | 2026-01-16 | Besteld |
+| D013 | Fase 2 Architectuur (Modulair + WebSocket) | 2026-01-16 | ✅ Geïmplementeerd |
 
 ---
 
-*Laatst bijgewerkt: 2026-01-16 (Fase 1 AFGEROND - TTS streaming + text normalisatie)*
+*Laatst bijgewerkt: 2026-01-16 (Fase 2 geïmplementeerd - modulaire orchestrator + WebSocket)*

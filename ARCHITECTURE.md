@@ -381,9 +381,66 @@ The system separates perception responsibilities by **latency requirements** and
 
 Inside the Orchestrator - the brain that coordinates everything.
 
+### Phase 2 Architecture (Current)
+
 ```mermaid
 flowchart TB
-    subgraph orch["Orchestrator (main.py)"]
+    subgraph orch["Orchestrator (fase2-refactor)"]
+        subgraph routes["routes/"]
+            health[health.py<br/>/health, /status, /config]
+            chat[chat.py<br/>/chat, /conversation]
+            ws_route[websocket.py<br/>/ws endpoint]
+        end
+
+        subgraph services["services/ (Protocol-based)"]
+            stt[stt/<br/>VoxtralSTT]
+            llm[llm/<br/>OllamaLLM]
+            tts[tts/<br/>FishAudioTTS]
+            tools[tools/<br/>EmotionTool, VisionTool]
+        end
+
+        subgraph models["models/"]
+            schemas[schemas.py<br/>Request/Response]
+            emotion[emotion.py<br/>EmotionManager]
+            conv[conversation.py<br/>ConversationManager]
+        end
+
+        subgraph websocket["websocket/"]
+            protocol[protocol.py<br/>MessageTypes]
+            manager[manager.py<br/>ConnectionManager]
+            handlers[handlers.py<br/>MessageHandler]
+        end
+
+        config[config.py<br/>Dataclasses + env vars]
+        main[main.py<br/>FastAPI entry]
+    end
+
+    main --> routes
+    routes --> services
+    routes --> models
+    ws_route --> websocket
+    websocket --> services
+
+    style orch fill:#fff3e0
+    style services fill:#e8f5e9
+    style models fill:#e3f2fd
+    style websocket fill:#fce4ec
+```
+
+### Key Architectural Decisions (D013)
+
+| Component | Pattern | Why |
+|-----------|---------|-----|
+| **Services** | Protocol (duck typing) | Swappable providers without inheritance |
+| **Config** | Dataclasses + `${VAR:-default}` | Type-safe, Docker-friendly |
+| **WebSocket** | Native FastAPI | Real-time Pi ↔ Desktop |
+| **Routes** | Separate modules | Single responsibility |
+
+### Legacy Architecture (Phase 1)
+
+```mermaid
+flowchart TB
+    subgraph orch["Orchestrator (main.py - monolith)"]
         api[API Routes<br/>/chat, /conversation, /health]
         conv[Conversation Manager<br/>History per session]
         emotion[Emotion State Machine<br/>15 emotions, auto-reset]
@@ -434,7 +491,9 @@ User: "Je bent geweldig!" → LLM calls show_emotion("happy") → state changes 
 - Hot-reload via `/reload-config` endpoint
 - No restart needed for parameter changes
 
-> Implementation details: [fase1-desktop/orchestrator/main.py](fase1-desktop/orchestrator/main.py)
+> Implementation details:
+> - Phase 2 (modular): [fase2-refactor/orchestrator/](fase2-refactor/orchestrator/)
+> - Phase 1 (legacy): [fase1-desktop/orchestrator/main.py](fase1-desktop/orchestrator/main.py)
 
 ---
 
@@ -530,10 +589,16 @@ All AI components working end-to-end on desktop. Hands-free Dutch conversations 
 
 **Details:** [fase1-desktop/README.md](fase1-desktop/README.md)
 
-### Phase 2: Refactor + Docker (Current)
-Clean up code (SOLID, KISS, DRY), full Docker Compose stack, API documentation, testing. Goal: `docker compose up` starts everything.
+### Phase 2: Refactor + Docker (Current - Geïmplementeerd)
+Modulaire orchestrator met Protocol-based services, WebSocket support, Docker Compose stack.
 
-**Details:** [fase2-refactor/PLAN.md](fase2-refactor/PLAN.md)
+**Key changes:**
+- Monolith → Modular (routes/, services/, models/, websocket/)
+- Protocol pattern for swappable providers (STT, LLM, TTS)
+- WebSocket protocol for Pi ↔ Desktop communication
+- Environment variable support for Docker (`${VAR:-default}`)
+
+**Details:** [fase2-refactor/README.md](fase2-refactor/README.md)
 
 ### Phase 3: Pi 5 Integration
 Connect real hardware - PiCar-X robot, motors, wake word detection, and OLED display for showing the robot's emotional state (driven by the Emotion State Machine). Desktop remains the AI brain, Pi handles physical interaction.
@@ -632,10 +697,10 @@ The architecture is designed (Phase 2 refactor) to easily swap between local and
 |----------|----------|
 | Main README | [README.md](README.md) |
 | All decisions with rationale | [DECISIONS.md](DECISIONS.md) |
-| Phase 1 details (AFGEROND) | [fase1-desktop/README.md](fase1-desktop/README.md) |
-| Phase 1 summary | [fase1-desktop/TODO.md](fase1-desktop/TODO.md) |
-| Original concept (detailed) | [archive/0.concept/](archive/0.concept/) |
-| Central configuration | [fase1-desktop/config.yml](fase1-desktop/config.yml) |
+| **Phase 2 (current)** | [fase2-refactor/README.md](fase2-refactor/README.md) |
+| Phase 2 config | [fase2-refactor/config.yml](fase2-refactor/config.yml) |
+| Phase 1 (legacy) | [fase1-desktop/README.md](fase1-desktop/README.md) |
+| Original concept | [archive/0.concept/](archive/0.concept/) |
 
 ---
 
