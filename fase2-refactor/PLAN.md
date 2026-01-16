@@ -263,9 +263,11 @@ Fase 2 is klaar wanneer:
 - [x] Health checks werken voor alle services (alle 4 healthy)
 - [x] Chat endpoint werkt (/chat - text → response)
 - [x] Audio pipeline werkt (/audio-conversation - audio → STT → LLM → TTS → audio)
-- [ ] WebSocket endpoint accepteert Pi connecties (nog te testen in fase 3)
+- [x] WebSocket endpoint werkt (verbinding, heartbeat, error handling, audio_process)
 - [x] Code is modulair (services, routes, models gescheiden)
 - [x] Documentatie compleet (README met quick start)
+
+**✅ FASE 2 AFGEROND (2026-01-16)**
 
 ---
 
