@@ -9,8 +9,8 @@
 
 | # | Issue | Prioriteit | Status |
 |---|-------|------------|--------|
-| 1 | TTS klinkt soms Engelserig | Hoog | ✅ Deels opgelost |
-| 2 | Text normalisatie (nieuw!) | Hoog | Volgende |
+| 1 | TTS klinkt soms Engelserig | Hoog | ✅ Opgelost |
+| 2 | Text normalisatie (nieuw!) | Hoog | ✅ Geïmplementeerd |
 | 3 | Temperature/top_p tuning | Hoog | Testen |
 | 4 | Langere reference audio | Medium | Optioneel |
 | 5 | Prosody/expressie markers | Laag | Optioneel |
@@ -48,116 +48,23 @@ Via orchestrator klonk TTS soms met Engels accent door:
 
 ---
 
-## 2. Text Normalisatie (NIEUW)
+## 2. Text Normalisatie
 
-### Waarom dit belangrijk is
-De TTS spreekt uit wat er letterlijk staat. Als de LLM "API" of "150" schrijft,
-probeert Fish Audio dat als Engels/internationaal uit te spreken → klinkt Engelserig.
+### Status: ✅ Geïmplementeerd (2026-01-16)
 
-**Dit is vaak effectiever dan langere reference audio!**
+**Wat het doet:**
+- Acroniemen → Nederlandse fonetiek: "API" → "aa-pee-ie", "ASML" → "aa-es-em-el"
+- Getallen → woorden: "247" → "tweehonderdzevenenveertig"
+- Haakjes → eerste `(` wordt komma, rest verwijderd (Fish Audio slaat haakjes over)
+- Specifieke woorden: "Docker" → "dokker"
 
-### Wat normaliseren?
+**Bestanden:**
+- `orchestrator/main.py` - `normalize_for_tts()` functie
+- `vad_conversation.py` - toont genormaliseerde tekst als `📝 [TTS]`
 
-| Input | Probleem | Genormaliseerd |
-|-------|----------|----------------|
-| API | Klinkt Engels | aa-pee-ie |
-| USB | Klinkt Engels | joe-es-bee |
-| GPU | Klinkt Engels | zjee-pee-joe |
-| Docker | Klinkt Engels | dokker |
-| 150 | Onduidelijk | honderdvijftig |
-| 2.5 | Onduidelijk | twee komma vijf |
-| RTX 4090 | Mix Engels/cijfers | er-tee-ex veertig negentig |
-
-### Implementatie (robuuste versie)
-
-```python
-# orchestrator/main.py - nieuwe functie
-import re
-from num2words import num2words  # pip install num2words
-
-def normalize_for_tts(text: str) -> str:
-    """Normaliseer tekst voor betere Nederlandse TTS uitspraak."""
-
-    # 1. ACRONIEMEN: letter-voor-letter uitspreken
-    #    Dekt automatisch API, USB, GPU, HTTP, JSON, VRAM, MCP, etc.
-    NL_LETTER_SOUNDS = {
-        'A': 'aa', 'B': 'bee', 'C': 'see', 'D': 'dee', 'E': 'ee',
-        'F': 'ef', 'G': 'zjee', 'H': 'haa', 'I': 'ie', 'J': 'jee',
-        'K': 'kaa', 'L': 'el', 'M': 'em', 'N': 'en', 'O': 'oo',
-        'P': 'pee', 'Q': 'kuu', 'R': 'er', 'S': 'es', 'T': 'tee',
-        'U': 'uu', 'V': 'vee', 'W': 'wee', 'X': 'iks', 'Y': 'ei',
-        'Z': 'zet'
-    }
-
-    # Woorden die NIET fonetisch gespeld moeten worden
-    SKIP_ACRONYMS = {'OK', 'TV', 'AI', 'ID'}  # Voeg toe naar behoefte
-
-    def spell_acronym(match):
-        acronym = match.group(0)
-        if acronym in SKIP_ACRONYMS:
-            return acronym  # Niet veranderen
-        return '-'.join(NL_LETTER_SOUNDS.get(c, c) for c in acronym)
-
-    # Match 2+ hoofdletters als heel woord (word boundaries)
-    text = re.sub(r'\b[A-Z]{2,}\b', spell_acronym, text)
-
-    # 2. SPECIFIEKE WOORDEN: case-insensitive met word boundaries
-    word_replacements = {
-        r'\bDocker\b': 'dokker',
-        r'\bPython\b': 'paiton',
-        r'\bLinux\b': 'Linux',  # klinkt al ok
-        r'\bNerdCarX\b': 'NerdCarX',  # eigen naam
-    }
-    for pattern, replacement in word_replacements.items():
-        text = re.sub(pattern, replacement, text, flags=re.IGNORECASE)
-
-    # 3. GETALLEN: naar Nederlandse woorden
-    def replace_number(match):
-        num_str = match.group(0)
-        try:
-            # Decimalen: "2.5" → "twee komma vijf"
-            if '.' in num_str:
-                parts = num_str.split('.')
-                whole = num2words(int(parts[0]), lang='nl')
-                decimal = ' '.join(num2words(int(d), lang='nl') for d in parts[1])
-                return f"{whole} komma {decimal}"
-            # Ranges: "3-5" → "drie tot vijf"
-            if '-' in num_str and num_str.count('-') == 1:
-                parts = num_str.split('-')
-                return f"{num2words(int(parts[0]), lang='nl')} tot {num2words(int(parts[1]), lang='nl')}"
-            # Gewone getallen
-            return num2words(int(num_str), lang='nl')
-        except:
-            return num_str
-
-    # Match getallen (inclusief decimalen en ranges)
-    # NOTE: Dit matcht "2.5" maar NIET "2,5" (NL komma) of "3–5" (en-dash)
-    # Uitbreiden indien nodig: r'\b\d+(?:[.,]\d+)?(?:[-–]\d+)?\b'
-    text = re.sub(r'\b\d+(?:\.\d+)?(?:-\d+)?\b', replace_number, text)
-
-    return text
-
-# Gebruik in synthesize_speech():
-text = normalize_for_tts(text)
-```
-
-### Wat deze versie doet
-
-| Input | Output | Hoe |
-|-------|--------|-----|
-| API | aa-pee-ie | Automatisch: 2+ hoofdletters |
-| HTTP | haa-tee-tee-pee | Automatisch: 2+ hoofdletters |
-| Docker | dokker | Specifieke vervanging |
-| 150 | honderdvijftig | num2words |
-| 2.5 | twee komma vijf | Decimaal herkenning |
-| 3-5 | drie tot vijf | Range herkenning |
-
-### Prioriteit
-**Hoog** - Probeer dit VOOR je aan reference audio gaat sleutelen.
-
-### Dependencies
+**Dependencies:**
 ```bash
-pip install num2words
+pip install num2words  # in nerdcarx-vad conda env
 ```
 
 ---

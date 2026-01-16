@@ -124,7 +124,7 @@ def chat_via_orchestrator(message: str, conversation_id: str) -> tuple:
     """
     Stuur bericht naar Orchestrator → Ministral LLM.
     Alle configuratie (prompt, model, etc.) wordt door de orchestrator geregeld.
-    Returns: (response_text, function_calls, emotion_info, audio_base64)
+    Returns: (response_text, function_calls, emotion_info, audio_base64, timing_ms, normalized_text)
     """
     payload = {
         "message": message,
@@ -141,7 +141,8 @@ def chat_via_orchestrator(message: str, conversation_id: str) -> tuple:
     emotion_info = result.get('emotion', {"current": "neutral", "changed": False, "auto_reset": False})
     audio_base64 = result.get('audio_base64')
     timing_ms = result.get('timing_ms', {})
-    return result['response'], result.get('function_calls', []), emotion_info, audio_base64, timing_ms
+    normalized_text = result.get('normalized_text')
+    return result['response'], result.get('function_calls', []), emotion_info, audio_base64, timing_ms, normalized_text
 
 
 def play_audio(audio_base64: str) -> bool:
@@ -394,7 +395,7 @@ def main():
                 # Get AI response via Orchestrator → Ministral + TTS
                 print("🔄 Processing (LLM+TTS)...", end="", flush=True)
                 t_proc_start = time.perf_counter()
-                ai_response, function_calls, emotion_info, audio_base64, server_timing = chat_via_orchestrator(
+                ai_response, function_calls, emotion_info, audio_base64, server_timing, normalized_text = chat_via_orchestrator(
                     user_text,
                     conversation_id
                 )
@@ -437,6 +438,10 @@ def main():
                     status = "behouden"
 
                 print(f"🎭 [EMOTIE] {emotion} {emoji} ({status})")
+
+                # Toon genormaliseerde TTS tekst als die verschilt
+                if normalized_text:
+                    print(f"📝 [TTS] {normalized_text}")
 
                 print(f"🤖 NerdCarX: {ai_response}")
 

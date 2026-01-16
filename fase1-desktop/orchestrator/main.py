@@ -20,6 +20,7 @@ from typing import Optional, List
 import httpx
 import yaml
 from fastapi import FastAPI, HTTPException
+from num2words import num2words
 from pydantic import BaseModel
 
 
@@ -136,6 +137,7 @@ class ChatResponse(BaseModel):
     emotion: Optional[dict] = None  # {"current": "angry", "changed": true, "auto_reset": false}
     audio_base64: Optional[str] = None  # TTS audio als base64
     timing_ms: Optional[dict] = None  # {"llm": 1234, "tts": 567}
+    normalized_text: Optional[str] = None  # TTS genormaliseerde tekst (voor debug)
 
 
 # In-memory conversation storage
@@ -194,21 +196,96 @@ def update_emotion_state(conversation_id: str, emotion: str) -> None:
         emotion_states[conversation_id]["last_interaction"] = datetime.now()
 
 
+# === TTS TEXT NORMALISATIE ===
+# Nederlandse fonetische uitspraak voor letters
+NL_LETTER_SOUNDS = {
+    'A': 'aa', 'B': 'bee', 'C': 'see', 'D': 'dee', 'E': 'ee',
+    'F': 'ef', 'G': 'zjee', 'H': 'haa', 'I': 'ie', 'J': 'jee',
+    'K': 'kaa', 'L': 'el', 'M': 'em', 'N': 'en', 'O': 'oo',
+    'P': 'pee', 'Q': 'kuu', 'R': 'er', 'S': 'es', 'T': 'tee',
+    'U': 'uu', 'V': 'vee', 'W': 'wee', 'X': 'iks', 'Y': 'ei',
+    'Z': 'zet'
+}
+
+# Woorden die NIET fonetisch gespeld moeten worden (klinken al goed)
+SKIP_ACRONYMS = {'OK', 'TV', 'AI', 'WC'}
+
+# Specifieke woord vervangingen (Engels → Nederlands-klinkend)
+WORD_REPLACEMENTS = {
+    r'\bDocker\b': 'dokker',
+    r'\bPython\b': 'paiton',
+    r'\bdesktop\b': 'desktob',
+}
+
+
+def normalize_for_tts(text: str) -> str:
+    """
+    Normaliseer tekst voor betere Nederlandse TTS uitspraak.
+
+    - Acroniemen (API, USB) → Nederlandse fonetiek (aa-pee-ie, joe-es-bee)
+    - Getallen → Nederlandse woorden (150 → honderdvijftig)
+    - Haakjes → eerste ( wordt komma, rest verwijderd
+    - Specifieke Engelse woorden → Nederlands-klinkend
+    """
+
+    # 1. HAAKJES: eerste ( wordt ", ", daarna haakjes verwijderen
+    # "extreme ultraviolet (EUV)" → "extreme ultraviolet, EUV"
+    text = re.sub(r'\s*\(', ', ', text, count=1)  # Eerste ( → ", "
+    text = re.sub(r'[()]', '', text)  # Overige haakjes verwijderen
+
+    # 2. ACRONIEMEN: letter-voor-letter uitspreken
+    def spell_acronym(match):
+        acronym = match.group(0)
+        if acronym in SKIP_ACRONYMS:
+            return acronym
+        return '-'.join(NL_LETTER_SOUNDS.get(c, c) for c in acronym)
+
+    # Match 2+ hoofdletters als heel woord
+    text = re.sub(r'\b[A-Z]{2,}\b', spell_acronym, text)
+
+    # 3. SPECIFIEKE WOORDEN
+    for pattern, replacement in WORD_REPLACEMENTS.items():
+        text = re.sub(pattern, replacement, text, flags=re.IGNORECASE)
+
+    # 4. GETALLEN: naar Nederlandse woorden
+    def replace_number(match):
+        num_str = match.group(0)
+        try:
+            # Decimalen: "2.5" → "twee komma vijf"
+            if '.' in num_str:
+                parts = num_str.split('.')
+                whole = num2words(int(parts[0]), lang='nl')
+                decimal = ' '.join(num2words(int(d), lang='nl') for d in parts[1])
+                return f"{whole} komma {decimal}"
+            # Gewone getallen
+            return num2words(int(num_str), lang='nl')
+        except:
+            return num_str
+
+    # Match getallen (geen ranges voor nu)
+    text = re.sub(r'\b\d+(?:\.\d+)?\b', replace_number, text)
+
+    return text
+
+
 # === TTS SERVICE (Fish Audio S1-mini) ===
-async def synthesize_speech(text: str, emotion: str, client: httpx.AsyncClient) -> Optional[str]:
+async def synthesize_speech(text: str, emotion: str, client: httpx.AsyncClient) -> tuple[Optional[str], Optional[str]]:
     """
     Roep Fish Audio TTS service aan om tekst naar spraak te converteren.
-    Returns: base64 encoded audio, of None bij fout.
+    Returns: (base64 encoded audio, normalized_text) of (None, None) bij fout.
 
     Note: emotion parameter wordt behouden voor interface compatibiliteit,
     maar Fish Audio gebruikt reference_id voor stem consistentie.
     """
     if not TTS_ENABLED or not text.strip():
-        return None
+        return None, None
+
+    # Normaliseer tekst voor betere Nederlandse uitspraak
+    normalized_text = normalize_for_tts(text)
 
     try:
         payload = {
-            "text": text,
+            "text": normalized_text,
             "reference_id": TTS_REFERENCE_ID,
             "temperature": TTS_TEMPERATURE,
             "top_p": TTS_TOP_P,
@@ -225,10 +302,14 @@ async def synthesize_speech(text: str, emotion: str, client: httpx.AsyncClient) 
         # Audio bytes naar base64
         audio_bytes = resp.content
         audio_base64 = base64.b64encode(audio_bytes).decode("utf-8")
-        return audio_base64
+
+        # Return alleen normalized_text als het verschilt van origineel
+        if normalized_text != text:
+            return audio_base64, normalized_text
+        return audio_base64, None
     except Exception as e:
         print(f"TTS error: {e}")
-        return None
+        return None, None
 
 
 # === TEXT-BASED TOOL CALL PARSING ===
@@ -671,7 +752,7 @@ async def conversation(request: ChatRequest):
             t_tts_start = time.perf_counter()
 
             # TTS: genereer spraak van schone tekst (geen function calls!)
-            audio_base64 = await synthesize_speech(content, new_emotion, client)
+            audio_base64, normalized_text = await synthesize_speech(content, new_emotion, client)
 
             # === TIMING: TTS END ===
             t_tts_end = time.perf_counter()
@@ -692,7 +773,8 @@ async def conversation(request: ChatRequest):
                 timing_ms={
                     "llm": round(timing_llm_ms),
                     "tts": round(timing_tts_ms)
-                }
+                },
+                normalized_text=normalized_text
             )
     except httpx.ConnectError:
         raise HTTPException(status_code=503, detail="Ollama niet bereikbaar")
