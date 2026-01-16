@@ -1,6 +1,6 @@
 # Fase 2: Refactor + Docker + Pi Communicatie
 
-**Status:** GEIMPLEMENTEERD (2026-01-16)
+**Status:** WERKEND (2026-01-16) - Stack draait, STT/LLM/TTS pipeline getest
 **Vorige fase:** Fase 1 Desktop - AFGEROND
 
 ---
@@ -59,7 +59,8 @@ fase2-refactor/
 │
 └── tts/
     └── fishaudio/
-        └── references/         # Reference audio (geen checkpoints)
+        ├── checkpoints/        # Model checkpoints (openaudio-s1-mini)
+        └── references/         # Reference audio (dutch2/)
 ```
 
 **NIET gekopieerd:** `vad-desktop/` → wordt Pi-based met wake word (Fase 3)
@@ -68,28 +69,22 @@ fase2-refactor/
 
 ## Docker Architectuur
 
-### Bestaande Containers (NIET wijzigen)
+### Volledige Stack (docker-compose.yml)
 
-**Ollama** (draait al apart):
-```bash
-docker run -d --gpus device=0 \
-  -v ollama:/root/.ollama \
-  -p 11434:11434 \
-  --name ollama-nerdcarx \
-  -e OLLAMA_KV_CACHE_TYPE=q8_0 \
-  -e OLLAMA_KEEP_ALIVE=-1 \
-  ollama/ollama
-```
+| Service | Port | GPU | Container | Notes |
+|---------|------|-----|-----------|-------|
+| ollama | 11434 | GPU0 (4090) | nerdcarx-ollama | Shared volume met andere ollama |
+| voxtral | 8150 | GPU1 (5070 Ti) | nerdcarx-voxtral | STT via vLLM |
+| tts | 8250 | GPU0 (4090) | nerdcarx-tts | Fish Audio S1-mini |
+| orchestrator | 8200 | CPU | nerdcarx-orchestrator | FastAPI |
 
-### Nieuwe docker-compose.yml
+**Volumes:**
+- `ollama` (external) - Gedeeld met andere ollama container
+- `tts-cache` - Compile cache voor snellere TTS restarts
+- `./tts/fishaudio/checkpoints` - Model checkpoints (lokaal)
+- `./tts/fishaudio/references` - Reference audio (lokaal)
 
-| Service | Port | GPU | Container |
-|---------|------|-----|-----------|
-| voxtral | 8150 | GPU1 (5070 Ti) | nerdcarx-voxtral |
-| tts | 8250 | GPU0 (4090) | nerdcarx-tts |
-| orchestrator | 8200 | CPU | nerdcarx-orchestrator |
-
-**Fish Audio checkpoints:** Named Docker volume `fish-checkpoints` (persistent, buiten repo)
+**Note:** Ollama zit nu IN de stack. Bij `docker compose up -d` start alles samen.
 
 ---
 
@@ -179,8 +174,10 @@ Pi                                Desktop
 
 ### Stap 4: Routes
 - [x] `routes/health.py` - /health, /status, /config
-- [x] `routes/chat.py` - /chat, /conversation, /conversation/streaming
+- [x] `routes/chat.py` - /chat, /conversation, /conversation/streaming, /audio-conversation
 - [x] `app/main.py` - FastAPI wiring
+
+**Nieuwe endpoint:** `/audio-conversation` - Volledige audio pipeline (Audio in → STT → LLM → TTS → Audio uit)
 
 ### Stap 5: WebSocket
 - [x] `websocket/protocol.py` - message types
@@ -190,10 +187,10 @@ Pi                                Desktop
 
 ### Stap 6: Docker
 - [x] `orchestrator/Dockerfile`
-- [x] `orchestrator/requirements.txt`
-- [x] `docker-compose.yml`
-- [ ] Health checks testen
-- [ ] `docker compose up` start hele stack
+- [x] `orchestrator/requirements.txt` (incl. python-multipart)
+- [x] `docker-compose.yml` (incl. Ollama, tts-cache volume)
+- [x] Health checks werken (alle services healthy)
+- [x] `docker compose up -d` start hele stack
 
 ### Stap 7: Documentatie
 - [x] `README.md` - setup guide
@@ -231,23 +228,29 @@ websocket:
 ## Verificatie
 
 ```bash
-# 1. Start Ollama
-docker start ollama-nerdcarx
-
-# 2. Start stack
+# 1. Start stack (Ollama zit er nu in)
 cd fase2-refactor
 docker compose up -d
+
+# 2. Check status
+docker ps --filter "name=nerdcarx" --format "table {{.Names}}\t{{.Status}}"
 
 # 3. Health checks
 curl http://localhost:8200/health
 curl http://localhost:8200/status
 
-# 4. Chat test
+# 4. Chat test (text only)
 curl -X POST http://localhost:8200/chat \
   -H "Content-Type: application/json" \
   -d '{"message": "Hallo, hoe heet je?"}'
 
-# 5. WebSocket test (wscat)
+# 5. Audio pipeline test (STT → LLM → TTS)
+curl -X POST http://localhost:8200/audio-conversation \
+  -F "audio=@test.wav" \
+  --output response.wav
+aplay response.wav
+
+# 6. WebSocket test (wscat)
 wscat -c ws://localhost:8200/ws
 ```
 
@@ -256,10 +259,11 @@ wscat -c ws://localhost:8200/ws
 ## Exit Criteria
 
 Fase 2 is klaar wanneer:
-- [x] `docker compose up` start hele stack (voxtral + tts + orchestrator)
-- [ ] Health checks werken voor alle services (nog te testen)
-- [ ] Chat endpoint werkt (text → response met TTS) (nog te testen)
-- [ ] WebSocket endpoint accepteert Pi connecties (nog te testen)
+- [x] `docker compose up -d` start hele stack (ollama + voxtral + tts + orchestrator)
+- [x] Health checks werken voor alle services (alle 4 healthy)
+- [x] Chat endpoint werkt (/chat - text → response)
+- [x] Audio pipeline werkt (/audio-conversation - audio → STT → LLM → TTS → audio)
+- [ ] WebSocket endpoint accepteert Pi connecties (nog te testen in fase 3)
 - [x] Code is modulair (services, routes, models gescheiden)
 - [x] Documentatie compleet (README met quick start)
 

@@ -224,12 +224,14 @@ nerdcarx/
 ├── fase2-refactor/                    # Fase 2: Refactor + Docker
 │   ├── README.md                      # Setup guide
 │   ├── PLAN.md                        # Implementatieplan
-│   ├── docker-compose.yml             # Volledige stack
+│   ├── docker-compose.yml             # Volledige stack (Ollama + Voxtral + TTS + Orchestrator)
 │   ├── config.yml                     # Centrale config
 │   ├── orchestrator/                  # Modulaire FastAPI app
 │   ├── stt-voxtral/                   # Voxtral Docker setup
 │   ├── llm-ministral/                 # Ollama instructies
-│   └── tts/fishaudio/                 # Voice references
+│   └── tts/fishaudio/                 # Model checkpoints + voice references
+│       ├── checkpoints/               # openaudio-s1-mini model
+│       └── references/                # dutch2 reference audio
 │
 ├── fase3-pi/                          # Fase 3: Pi Integratie
 │   └── PLAN.md
@@ -255,17 +257,25 @@ nerdcarx/
 ```bash
 # Zie fase2-refactor/README.md voor complete instructies
 
-# 1. Start Ollama (draait extern)
-docker start ollama-nerdcarx
-# Of eerste keer: zie fase2-refactor/llm-ministral/README.md
-
-# 2. Start volledige stack
+# 1. Start volledige stack (incl. Ollama)
 cd fase2-refactor
 docker compose up -d
 
-# 3. Test
+# 2. Check status (alle 4 moeten healthy zijn)
+docker ps --filter "name=nerdcarx" --format "table {{.Names}}\t{{.Status}}"
+
+# 3. Health check
 curl http://localhost:8200/health
-curl http://localhost:8200/status
+
+# 4. Chat test
+curl -X POST http://localhost:8200/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Hallo!"}'
+
+# 5. Audio pipeline test (STT → LLM → TTS)
+curl -X POST http://localhost:8200/audio-conversation \
+  -F "audio=@test.wav" --output response.wav
+aplay response.wav
 ```
 
 ### Fase 1 (Legacy - conda)
@@ -322,6 +332,16 @@ python vad_conversation.py
 
 **Huidige fase:** 2 - Refactor + Docker
 
+**Fase 2 - Refactor + Docker:** 🔄 IN PROGRESS
+- ✅ Modulaire orchestrator met Protocol-based services
+- ✅ Docker Compose stack (4 services: Ollama, Voxtral, TTS, Orchestrator)
+- ✅ Alle services healthy met health checks
+- ✅ /chat endpoint (text → LLM → response)
+- ✅ /audio-conversation endpoint (audio → STT → LLM → TTS → audio)
+- ✅ WebSocket protocol gedefinieerd
+- ⏳ WebSocket testen (zonder Pi)
+- Zie [`fase2-refactor/PLAN.md`](fase2-refactor/PLAN.md) voor details
+
 **Fase 1 - Desktop Compleet:** ✅ AFGEROND (2026-01-16)
 - Volledige pipeline: VAD → STT → LLM → TTS → Speaker
 - Function calling: `take_photo`, `show_emotion`
@@ -373,7 +393,7 @@ python vad_conversation.py
 - Perceived latency: ~1.1s (streaming) vs ~3.6s (batch)
 - Vision latency: ~5-10s (dubbele LLM call)
 
-**Laatste update:** 2026-01-16 - Fase 1 AFGEROND
+**Laatste update:** 2026-01-16 - Fase 2 Docker stack werkend
 
 > **Meer weten?**
 > - [`ARCHITECTURE.md`](ARCHITECTURE.md) - Uitgebreide architectuur documentatie met diagrammen

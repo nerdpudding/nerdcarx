@@ -1,10 +1,11 @@
 """Chat en conversation endpoints."""
+import base64
 import json
 import time
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form
+from fastapi.responses import StreamingResponse, Response
 import httpx
 
 from ..config import get_config
@@ -16,7 +17,7 @@ from ..models import (
     EmotionManager,
     ConversationManager,
 )
-from ..services import OllamaLLM, FishAudioTTS, ToolRegistry, EmotionTool, VisionTool
+from ..services import OllamaLLM, FishAudioTTS, VoxtralSTT, ToolRegistry, EmotionTool, VisionTool
 from ..utils import split_into_sentences
 
 router = APIRouter(tags=["chat"])
@@ -451,6 +452,128 @@ async def conversation_streaming(request: ChatRequest):
             "X-Accel-Buffering": "no"
         }
     )
+
+
+@router.post("/audio-conversation")
+async def audio_conversation(
+    audio: UploadFile = File(..., description="WAV audio bestand"),
+    conversation_id: Optional[str] = Form(default="default"),
+    language: Optional[str] = Form(default="nl"),
+    return_format: Optional[str] = Form(default="audio", description="'audio' voor WAV, 'json' voor JSON met base64")
+):
+    """
+    Volledige audio pipeline: STT → LLM → TTS.
+
+    Accepteert audio, transcribeert via Voxtral, stuurt naar LLM,
+    genereert TTS, en retourneert audio of JSON.
+    """
+    config = get_config()
+    emotion_manager = get_emotion_manager()
+    conversation_manager = get_conversation_manager()
+    tool_registry = get_tool_registry()
+
+    # Lees audio bytes
+    audio_bytes = await audio.read()
+
+    try:
+        # === STT ===
+        stt = VoxtralSTT(
+            url=config.voxtral.url,
+            model=config.voxtral.model,
+            temperature=config.voxtral.temperature
+        )
+        user_text = await stt.transcribe(audio_bytes, language=language)
+
+        if not user_text.strip():
+            raise HTTPException(status_code=400, detail="Lege transcriptie - geen spraak gedetecteerd")
+
+        # === LLM ===
+        emotion_state = emotion_manager.get_state(conversation_id)
+        current_emotion = emotion_state.emotion
+
+        emotion_context = f"\n\nJe huidige emotionele staat is: {current_emotion}."
+        system_prompt = config.system_prompt + emotion_context
+
+        conv = conversation_manager.get_or_create(conversation_id, config.system_prompt)
+        conv.add_user_message(user_text)
+
+        messages = conv.to_ollama_messages(system_prompt)
+        tools = tool_registry.get_definitions()
+
+        llm = OllamaLLM(
+            url=config.ollama.url,
+            model=config.ollama.model,
+            temperature=config.ollama.temperature,
+            top_p=config.ollama.top_p,
+            repeat_penalty=config.ollama.repeat_penalty,
+            num_ctx=config.ollama.num_ctx
+        )
+
+        response = await llm.chat(messages=messages, tools=tools)
+        content = response.content
+        function_calls = []
+
+        if response.tool_calls:
+            content, function_calls = await complete_tool_calls(
+                llm, messages, response.tool_calls, tool_registry,
+                {"temperature": config.ollama.temperature, "num_ctx": config.ollama.num_ctx}
+            )
+
+        conv.add_assistant_message(content)
+
+        # Check emotion changes
+        new_emotion = current_emotion
+        for fc in function_calls:
+            if fc.name == "show_emotion":
+                new_emotion = fc.arguments.get("emotion", current_emotion)
+                emotion_manager.update_emotion(conversation_id, new_emotion)
+
+        # === TTS ===
+        audio_base64 = None
+        normalized_text = None
+
+        if config.tts.enabled and content.strip():
+            tts = FishAudioTTS(
+                url=config.tts.url,
+                reference_id=config.tts.reference_id,
+                temperature=config.tts.temperature,
+                top_p=config.tts.top_p,
+                format=config.tts.format
+            )
+            audio_base64, normalized_text = await tts.synthesize_base64(content)
+
+        # Return response
+        if return_format == "audio" and audio_base64:
+            audio_data = base64.b64decode(audio_base64)
+            return Response(
+                content=audio_data,
+                media_type="audio/wav",
+                headers={
+                    "X-Transcription": user_text[:100],
+                    "X-Response": content[:100],
+                    "X-Emotion": new_emotion
+                }
+            )
+        else:
+            return {
+                "transcription": user_text,
+                "response": content,
+                "model": config.ollama.model,
+                "conversation_id": conversation_id,
+                "function_calls": [{"name": fc.name, "arguments": fc.arguments} for fc in function_calls],
+                "emotion": {"current": new_emotion},
+                "audio_base64": audio_base64,
+                "normalized_text": normalized_text
+            }
+
+    except httpx.ConnectError as e:
+        raise HTTPException(status_code=503, detail=f"Service niet bereikbaar: {str(e)}")
+    except httpx.TimeoutException:
+        raise HTTPException(status_code=504, detail="Service timeout")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.delete("/conversation/{conversation_id}")

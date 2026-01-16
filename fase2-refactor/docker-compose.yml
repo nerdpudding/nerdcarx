@@ -5,13 +5,36 @@
 #   docker compose up -d --build    # Rebuild en start
 #   docker compose logs -f          # Volg logs
 #   docker compose down             # Stop alle services
-#
-# Note: Ollama draait NIET in deze compose - het draait al extern:
-#   docker run -d --gpus device=0 -v ollama:/root/.ollama -p 11434:11434 \
-#     --name ollama-nerdcarx -e OLLAMA_KV_CACHE_TYPE=q8_0 -e OLLAMA_KEEP_ALIVE=-1 ollama/ollama
 
 services:
+  # Ollama LLM - Ministral 14B
+  ollama:
+    image: ollama/ollama:latest
+    container_name: nerdcarx-ollama
+    ports:
+      - "11434:11434"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ['0']  # GPU0 - RTX 4090
+              capabilities: [gpu]
+    volumes:
+      - ollama:/root/.ollama
+    environment:
+      - OLLAMA_KV_CACHE_TYPE=q8_0
+      - OLLAMA_KEEP_ALIVE=-1
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
   # Voxtral STT - Speech-to-Text via vLLM
+  # Custom image met audio dependencies (soundfile, ffmpeg, librosa)
   voxtral:
     build: ./stt-voxtral/docker
     image: nerdcarx/vllm-voxtral:latest
@@ -28,6 +51,17 @@ services:
     volumes:
       - ~/.cache/huggingface:/root/.cache/huggingface
     ipc: host
+    # vLLM configuratie - officieel aanbevolen door Mistral
+    # Bron: https://huggingface.co/mistralai/Voxtral-Mini-3B-2507#vllm-recommended
+    command: >
+      --model mistralai/Voxtral-Mini-3B-2507
+      --tokenizer_mode mistral
+      --config_format mistral
+      --load_format mistral
+      --host 0.0.0.0
+      --port 8000
+      --max-model-len 4096
+      --gpu-memory-utilization 0.75
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
@@ -50,8 +84,9 @@ services:
               device_ids: ['0']  # GPU0 - RTX 4090
               capabilities: [gpu]
     volumes:
-      - fish-checkpoints:/app/checkpoints
-      - ./tts/fishaudio/references:/app/references
+      - ./tts/fishaudio/checkpoints:/app/checkpoints:ro
+      - ./tts/fishaudio/references:/app/references  # Niet ro, Fish Audio schrijft hier
+      - tts-cache:/root/.cache  # Compile cache persisteren
     entrypoint: uv
     command: run tools/api_server.py --listen 0.0.0.0:8080 --compile
     healthcheck:
@@ -72,12 +107,12 @@ services:
     volumes:
       - ./config.yml:/app/config.yml:ro
     environment:
-      - OLLAMA_URL=http://host.docker.internal:11434
+      - OLLAMA_URL=http://ollama:11434
       - VOXTRAL_URL=http://voxtral:8000
       - TTS_URL=http://tts:8080
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     depends_on:
+      ollama:
+        condition: service_healthy
       voxtral:
         condition: service_healthy
       tts:
@@ -91,5 +126,7 @@ services:
     restart: unless-stopped
 
 volumes:
-  fish-checkpoints:
-    name: nerdcarx-fish-checkpoints
+  ollama:
+    external: true  # Gedeelde volume met andere ollama container
+  tts-cache:
+    name: nerdcarx-tts-cache  # Compile cache voor Fish Audio

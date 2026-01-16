@@ -1,6 +1,6 @@
 # Dagplanning 16 januari 2026
 
-**Status:** ✅ Fase 1 AFGEROND
+**Status:** ✅ Fase 1 AFGEROND | 🔄 Fase 2 IN PROGRESS
 
 ---
 
@@ -9,8 +9,10 @@
 | # | Taak | Prioriteit | Status |
 |---|------|------------|--------|
 | 1 | TODO Fase 1 afmaken | Hoog | ✅ AFGEROND |
-| 2 | VAD op Pi + pipeline test script | Hoog | Gepland voor Fase 2 |
-| 3 | OLED aansluiten + emotion features | Medium | Gepland voor Fase 2/3 |
+| 2 | Fase 2 Docker Stack opzetten | Hoog | ✅ AFGEROND |
+| 3 | WebSocket testen (zonder Pi) | Medium | ⏳ TODO |
+| 4 | VAD op Pi + pipeline test script | Medium | Gepland voor Fase 3 |
+| 5 | OLED aansluiten + emotion features | Medium | Gepland voor Fase 3 |
 
 ---
 
@@ -33,7 +35,48 @@ Zie: [`fase1-desktop/TODO.md`](fase1-desktop/TODO.md) voor volledige samenvattin
 
 ---
 
-## 2. VAD op Pi + Pipeline Test Script → Gepland Fase 2
+## 2. Fase 2 Docker Stack - ✅ AFGEROND
+
+**Wat is geïmplementeerd:**
+- ✅ Modulaire orchestrator met Protocol-based services (SOLID)
+- ✅ Docker Compose met 4 services: Ollama, Voxtral, TTS, Orchestrator
+- ✅ Alle services healthy met werkende health checks
+- ✅ /chat endpoint (text → LLM → response)
+- ✅ /audio-conversation endpoint (audio → STT → LLM → TTS → audio)
+- ✅ TTS checkpoints verplaatst naar fase2-refactor/tts/fishaudio/
+- ✅ TTS cache volume voor snellere restarts
+- ✅ Dutch2 reference audio correct geconfigureerd
+
+**Stack starten:**
+```bash
+cd fase2-refactor
+docker compose up -d
+```
+
+**Testen:**
+```bash
+# Health check
+curl http://localhost:8200/health
+
+# Audio pipeline
+curl -X POST http://localhost:8200/audio-conversation \
+  -F "audio=@test.wav" --output response.wav
+aplay response.wav
+```
+
+Zie: [`fase2-refactor/PLAN.md`](fase2-refactor/PLAN.md)
+
+---
+
+## 3. WebSocket Testen → TODO
+
+**Doel:**
+- WebSocket endpoint testen zonder Pi (met wscat of Python script)
+- AUDIO_PROCESS message flow valideren
+
+---
+
+## 4. VAD op Pi + Pipeline Test Script → Gepland Fase 3
 
 **Huidige situatie Pi:**
 - PiCar-X gebouwd en basis getest
@@ -48,7 +91,7 @@ Zie: [`fase1-desktop/TODO.md`](fase1-desktop/TODO.md) voor volledige samenvattin
 
 ---
 
-## 3. OLED Aansluiten + Emotion Features → Gepland Fase 2/3
+## 5. OLED Aansluiten + Emotion Features → Gepland Fase 3
 
 **Huidige situatie:**
 - OLED WPI438 (SSD1306) aanwezig

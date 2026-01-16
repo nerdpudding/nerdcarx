@@ -540,13 +540,18 @@ orchestrator/app/
 - Desktop → Pi: `response`, `audio_chunk`, `function_call`, `error`
 
 **Docker Compose services:**
-| Service | Port | GPU |
-|---------|------|-----|
-| voxtral | 8150 | GPU1 |
-| tts | 8250 | GPU0 |
-| orchestrator | 8200 | CPU |
+| Service | Port | GPU | Notes |
+|---------|------|-----|-------|
+| ollama | 11434 | GPU0 | Shared volume met andere ollama container |
+| voxtral | 8150 | GPU1 | STT via vLLM |
+| tts | 8250 | GPU0 | Fish Audio S1-mini |
+| orchestrator | 8200 | CPU | FastAPI |
 
-Note: Ollama draait extern (niet in compose) om resource conflicts te vermijden.
+**Volumes:**
+- `ollama` (external) - Gedeelde volume, kan naast andere ollama container bestaan
+- `tts-cache` - Compile cache voor snellere TTS restarts
+
+**Update 2026-01-16:** Ollama nu IN de stack voor eenvoudiger beheer (`docker compose up -d` start alles).
 
 **Referentie:** [fase2-refactor/README.md](fase2-refactor/README.md)
 
@@ -589,4 +594,4 @@ Note: Ollama draait extern (niet in compose) om resource conflicts te vermijden.
 
 ---
 
-*Laatst bijgewerkt: 2026-01-16 (Fase 2 geïmplementeerd - modulaire orchestrator + WebSocket)*
+*Laatst bijgewerkt: 2026-01-16 (Fase 2 Docker stack werkend - Ollama in stack, audio pipeline getest)*
