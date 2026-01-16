@@ -3,6 +3,7 @@
 Stap-voor-stap installatie instructies voor de Pi client.
 
 **Getest op:** Raspberry Pi 5 (16GB), Pi OS Lite (Trixie 64-bit), Python 3.13.5
+**Laatste update:** 2026-01-16
 
 ---
 
@@ -53,7 +54,8 @@ De USB mic is zacht op >50cm afstand. Gebruik +20dB gain:
 sudo apt install sox
 sox input.wav output.wav gain 20
 
-# Of in Python (zie audio/capture.py)
+# Of in Python (in capture code)
+audio = audio * 10.0  # +20dB gain
 ```
 
 ---
@@ -70,10 +72,7 @@ bash Miniforge3-Linux-aarch64.sh
 Bij vraag "initialize conda?" → typ `yes`
 
 ```bash
-# Herstart shell
 source ~/.bashrc
-
-# Verify
 conda --version
 ```
 
@@ -144,46 +143,86 @@ pip install pyaudio
 
 ---
 
-## 5. Wake Word Test
+## 5. Silero VAD (ONNX) Installatie
 
-### 5.1 Test script
+### 5.1 ONNX Runtime is al geinstalleerd via openwakeword
 
-Maak `test_wakeword.py`:
-
-```python
-import pyaudio
-import numpy as np
-from openwakeword.model import Model
-
-# v0.4.0 API - load all models, no kwargs
-model = Model()
-
-audio = pyaudio.PyAudio()
-stream = audio.open(format=pyaudio.paInt16, channels=1, rate=16000, input=True, frames_per_buffer=1280, input_device_index=2)
-
-print(f"Loaded models: {list(model.models.keys())}")
-print("Listening for 'hey jarvis'... (Ctrl+C to stop)")
-
-while True:
-    data = np.frombuffer(stream.read(1280), dtype=np.int16)
-    prediction = model.predict(data)
-    score = prediction["hey_jarvis"]
-    if score > 0.5:
-        print(f"DETECTED! Score: {score:.2f}")
+```bash
+python -c "import onnxruntime; print('OK')"
 ```
 
-### 5.2 Run test
+### 5.2 Silero VAD model
+
+**BELANGRIJK:** Gebruik Silero VAD **v4** model, NIET de nieuwste versie!
+
+- Nieuwere versie heeft `state` input (128 dim) - werkt niet correct
+- v4 versie heeft `h`/`c` inputs (64 dim) - werkt wel
+
+Het test script download automatisch het juiste model:
+```
+https://github.com/snakers4/silero-vad/raw/v4.0/files/silero_vad.onnx
+```
+
+Model wordt opgeslagen in: `~/silero_vad_v4.onnx`
+
+---
+
+## 6. Wake Word Test
+
+### 6.1 Test script locatie
+
+```
+~/fase3-pi/test_scripts/test_wakeword.py
+```
+
+### 6.2 Run test
 
 ```bash
 conda activate nerdcarx
-python test_wakeword.py
+python ~/fase3-pi/test_scripts/test_wakeword.py
 ```
 
 Zeg "hey jarvis" - je zou `DETECTED! Score: 0.9x` moeten zien.
 
+### 6.3 Werking
+
+- Laadt alle pre-trained models (alexa, hey_mycroft, hey_jarvis, timer, weather)
+- Luistert via USB mic (device_index=2)
+- Threshold: 0.5
+
 ---
 
-## 6. Bekende Issues & Oplossingen
+## 7. Silero VAD Test
+
+### 7.1 Test script locatie
+
+```
+~/fase3-pi/test_scripts/test_vad.py
+```
+
+### 7.2 Run test
+
+```bash
+conda activate nerdcarx
+python ~/fase3-pi/test_scripts/test_vad.py
+```
+
+Je zou moeten zien:
+- Score stijgt (>0.5) als je praat
+- "SPEECH" indicator verschijnt
+- Audio level (lvl:) stijgt bij geluid
+
+### 7.3 Werking
+
+- Download Silero VAD v4 model (eenmalig)
+- Gebruikt ONNX Runtime (geen PyTorch nodig!)
+- Chunk size: 480 samples (30ms @ 16kHz)
+- State: h/c vectors (2, 1, 64)
+- Threshold: 0.5
+
+---
+
+## 8. Bekende Issues & Oplossingen
 
 | Issue | Oorzaak | Oplossing |
 |-------|---------|-----------|
@@ -193,10 +232,12 @@ Zeg "hey jarvis" - je zou `DETECTED! Score: 0.9x` moeten zien.
 | GPU warnings | Geen GPU op Pi | Negeren, gebruikt CPU |
 | ALSA warnings | PyAudio probeert alle configs | Negeren |
 | Old packages conflict | ~/.local/lib packages | Verwijder ~/.local/lib/python3.13 |
+| VAD score altijd 0 | Verkeerde model versie | Gebruik Silero VAD v4 (met h/c) |
+| VAD 'state' input error | Nieuwere model versie | Download v4 model expliciet |
 
 ---
 
-## 7. Hardware Referentie
+## 9. Hardware Referentie
 
 | Component | Device | Card |
 |-----------|--------|------|
@@ -206,9 +247,21 @@ Zeg "hey jarvis" - je zou `DETECTED! Score: 0.9x` moeten zien.
 
 ---
 
-## Volgende Stappen
+## 10. Folder Structuur op Pi
 
-- [ ] Silero VAD via ONNX Runtime testen
-- [ ] Gain in Python implementeren
-- [ ] WebSocket client naar desktop
-- [ ] Volledige pipeline integreren
+```
+~/fase3-pi/
+├── test_scripts/
+│   ├── test_wakeword.py    # OpenWakeWord test (hey_jarvis)
+│   └── test_vad.py         # Silero VAD test (ONNX)
+├── PLAN.md                  # Implementatie plan
+└── SETUP.md                 # Deze file
+```
+
+---
+
+## 11. Sync vanaf Desktop
+
+```bash
+rsync -avz /home/rvanpolen/vibe_claude_kilo_cli_exp/nerdcarx/fase3-pi/ rvanpolen@192.168.1.71:~/fase3-pi/
+```

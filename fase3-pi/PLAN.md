@@ -11,7 +11,7 @@ Fase 3 is opgesplitst in subfases met duidelijke prioriteiten:
 
 | Subfase | Focus | Prioriteit | Status |
 |---------|-------|------------|--------|
-| **3a** | Core audio flow (wake word → VAD → WebSocket → response) | **VANDAAG** | TODO |
+| **3a** | Core audio flow (wake word → VAD → WebSocket → response) | **VANDAAG** | 🔄 WIP (wake+VAD done) |
 | **3b** | OLED emotie display | Later vandaag/morgen | TODO |
 | **3c** | Hardware uitbreiding (ToF, LEDs, Camera 3) | Toekomst | Gepland |
 
@@ -29,7 +29,7 @@ User kan via Pi mic praten met robot en krijgt response via Pi speaker:
 
 ### Wake Word Keuze
 
-**Keuze: OpenWakeWord** met `hey_jarvis` model (2026-01-16)
+**Keuze: OpenWakeWord v0.4.0** met `hey_jarvis` model (2026-01-16) ✅ WERKEND
 
 **Stijl:** Always-listening wake-word (robot reageert op "hey jarvis" ook met TV/fans aan)
 
@@ -41,20 +41,26 @@ User kan via Pi mic praten met robot en krijgt response via Pi speaker:
 - ✅ GitHub: https://github.com/dscripka/openWakeWord
 - ✅ Reference clone: `original_openWakeWord-REFERENCE/`
 
-**Configuratie:**
+**KRITIEK: Gebruik versie 0.4.0, NIET 0.6.0!**
+- v0.6.0 faalt: `tflite-runtime` heeft geen wheel voor Python 3.13 ARM64
+- v0.4.0 werkt: gebruikt ONNX Runtime
+
+**Test resultaten:** Scores 0.85-1.00 bij duidelijke "hey jarvis"
+
+**Configuratie (v0.4.0 API - geen kwargs!):**
 ```python
 from openwakeword.model import Model
 
-model = Model(
-    wakeword_models=["hey_jarvis"],
-    enable_speex_noise_suppression=True  # ruisonderdrukking voor TV/fans
-)
+# v0.4.0: Model() zonder parameters laadt alle pre-trained models
+model = Model()
 
-# Per audio frame (16-bit 16kHz PCM)
+# Per audio frame (16-bit 16kHz PCM, 1280 samples = 80ms)
 prediction = model.predict(audio_frame)
 if prediction["hey_jarvis"] > 0.5:
     print("Wake word detected!")
 ```
+
+**Test script:** `test_scripts/test_wakeword.py`
 
 **Later (toekomstige fase):**
 - Custom "hey nerd" model trainen via [Google Colab](https://colab.research.google.com/drive/1q1oe2zOyZp7UsB3jJiQ1IFn8z5YfjwEb)
@@ -62,7 +68,7 @@ if prediction["hey_jarvis"] > 0.5:
 
 ### VAD Keuze
 
-**Keuze: Silero VAD via ONNX Runtime** (2026-01-16)
+**Keuze: Silero VAD v4 via ONNX Runtime** (2026-01-16) ✅ WERKEND
 
 **Waarom Silero VAD:**
 - ML-based, zeer accuraat voor speech vs noise
@@ -72,6 +78,14 @@ if prediction["hey_jarvis"] > 0.5:
 **BELANGRIJK: Gebruik ONNX Runtime, NIET PyTorch**
 - PyTorch op ARM Pi = dependency hell
 - ONNX Runtime is lichter en werkt smooth op ARM
+
+**KRITIEK: Gebruik Silero VAD v4 model, NIET nieuwere versies!**
+- v4 model: inputs `h`/`c` (shape 2,1,64) - WERKT
+- Nieuwere versies: input `state` (shape 128) - WERKT NIET correct
+- Download URL: `https://github.com/snakers4/silero-vad/raw/v4.0/files/silero_vad.onnx`
+- Chunk size: 480 samples (30ms @ 16kHz)
+
+**Test script:** `test_scripts/test_vad.py`
 
 **Fallback:** `speech_recognition` met `adjust_for_ambient_noise()` als Silero niet werkt
 - Energy-threshold based (minder robuust)
@@ -319,8 +333,8 @@ python main.py
 
 ### Success Criteria Subfase 3a
 
-- [ ] Wake word detectie werkt op Pi
-- [ ] VAD neemt spraak correct op
+- [x] Wake word detectie werkt op Pi ✅ (2026-01-16)
+- [x] VAD neemt spraak correct op ✅ (2026-01-16)
 - [ ] Audio wordt naar desktop gestuurd via WebSocket
 - [ ] Desktop verwerkt (STT → LLM → TTS)
 - [ ] TTS audio komt terug naar Pi
@@ -415,20 +429,25 @@ python main.py
 
 ## Open Vragen
 
-1. **Wake word keuze**: OpenWakeWord of Porcupine? User doet research.
+1. ~~**Wake word keuze**~~: ✅ OpenWakeWord v0.4.0 met `hey_jarvis` model (getest, werkt)
 2. ~~**Desktop IP**~~: ✅ 192.168.1.71 of nerdcarx.local
-3. **Audio format**: WAV 16kHz mono (zelfde als fase1) - te verifiëren na mic test
+3. ~~**Audio format**~~: ✅ WAV 16kHz mono, +20dB gain nodig voor USB mic
 
 ---
 
 ## Volgende Stap
 
-Na goedkeuring van dit plan:
-1. **SSH naar Pi** en test verbinding
-2. **Test microphone** met `arecord`
-3. **Test speaker** met `aplay`
-4. Als hardware werkt → wake word keuze maken
-5. Dan pas project setup en implementatie
+Wat nu werkt:
+- ✅ Hardware: mic (card 2), speaker (card 3 + GPIO 20)
+- ✅ Wake word: OpenWakeWord v0.4.0 met hey_jarvis
+- ✅ VAD: Silero VAD v4 via ONNX Runtime
+
+Nog te doen voor complete Subfase 3a:
+1. **Combineer** wake word + VAD in main.py (detect → record → send)
+2. **WebSocket client** naar desktop orchestrator (ws://192.168.1.x:8200/ws)
+3. **Audio playback** voor TTS responses via speaker
+4. **+20dB gain** in Python capture code (nu alleen via sox)
+5. **End-to-end test** van volledige flow
 
 ---
 
@@ -480,7 +499,10 @@ Na goedkeuring van dit plan:
 | 2026-01-14 | Camera werkend maar exposure tuning nodig (donker beeld) |
 | 2026-01-16 | Fase 3 plan gedetailleerd met subfases 3a/3b/3c |
 | 2026-01-16 | Audio hardware getest: mic=card2, speaker=card3, GPIO20 nodig, +20dB gain via sox |
-| 2026-01-16 | Wake word: OpenWakeWord (hey_jarvis), VAD: Silero via ONNX (niet PyTorch) |
+| 2026-01-16 | Conda (Miniforge) + Python 3.13 environment opgezet |
+| 2026-01-16 | **OpenWakeWord v0.4.0** werkend - `test_scripts/test_wakeword.py` (scores 0.85-1.00) |
+| 2026-01-16 | **Silero VAD v4 ONNX** werkend - `test_scripts/test_vad.py` (h/c state, 480 chunk) |
+| 2026-01-16 | SETUP.md aangemaakt met complete installatie instructies en troubleshooting |
 
 ---
 
