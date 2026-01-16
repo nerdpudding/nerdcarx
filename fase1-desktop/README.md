@@ -1,32 +1,45 @@
-# Fase 1: Desktop Compleet
+# Fase 1: Desktop Pipeline - AFGEROND ✅
 
-**Status:** ✅ Alle onderdelen geïmplementeerd
+**Status:** ✅ AFGEROND - Klaar voor Fase 2
 **Doel:** Volledig werkende desktop demo met spraak-naar-spraak loop
+**Datum:** 2026-01-16
 
-## Huidige Stand (2026-01-11)
+## Architectuur
 
 ```
-[Desktop Mic] → [VAD] → [Voxtral STT] → [Orchestrator] → [Ministral LLM] → [TTS] → audio
+[Desktop Mic] → [VAD] → [Voxtral STT] → [Orchestrator] → [Ministral LLM] → [TTS] → Speaker
                                               ↓
                                     + Vision (take_photo tool)
                                     + Emoties (show_emotion tool)
-                                    + Centrale config (config.yml)
+                                    + Text normalisatie (NL uitspraak)
+                                    + Pseudo-streaming (per zin)
+                                    + Spatiebalk interrupt
 ```
 
-**Wat werkt:** ✅ Alle tests geslaagd
-- STT via Voxtral (Docker op GPU1)
-- LLM via Ministral 8B/14B (Ollama op GPU0)
+## Geïmplementeerde Features
+
+**Core Pipeline:** ✅ Volledig werkend
+- STT via Voxtral Mini 3B (Docker op GPU1)
+- LLM via Ministral 14B (Ollama op GPU0)
 - TTS via Fish Audio S1-mini (Docker, port 8250)
-- Orchestrator met centrale config + hot reload
-- VAD hands-free gesprekken
-- Vision via `take_photo` function call
-- Emoties via `show_emotion` function call
+- Orchestrator met centrale config (config.yml)
+- VAD hands-free gesprekken met conversation history
+
+**Function Calling:**
+- `take_photo` - Camera foto analyseren
+- `show_emotion` - Emotie state wijzigen
+
+**TTS Verbeteringen:**
+- Text normalisatie: acroniemen, getallen, haakjes naar NL fonetiek
+- 30s ElevenLabs reference audio met alle emoties
+- Pseudo-streaming: TTS per zin voor snellere perceived latency
+- Spatiebalk interrupt tijdens audio playback
 
 **Performance:**
-- Vision latency: ~5-10s (dubbele LLM call)
-- TTS latency: ~1.2s per zin (Fish Audio)
 - STT latency: 150-750ms
 - LLM latency: 700-1300ms
+- TTS latency: ~600ms per zin (streaming) / ~1.2s (batch)
+- Perceived latency: ~1.1s (streaming) vs ~3.6s (batch)
 
 ---
 
@@ -72,26 +85,28 @@ Alle settings staan in `config.yml`:
 
 ```yaml
 ollama:
-  model: "ministral-3:14b-instruct-2512-q8_0"
-  temperature: 0.15    # Officieel
-  top_p: 1.0           # Officieel
-  repeat_penalty: 1.0  # Officieel
+  model: "ministral-3:14b"
+  temperature: 0.15    # Officieel recommended
+  top_p: 1.0           # Officieel recommended
+  repeat_penalty: 1.0  # Officieel recommended
 
 voxtral:
-  temperature: 0.0     # Greedy voor transcriptie
+  temperature: 0.0     # Greedy decoding voor accuracy
 
 tts:  # Fish Audio S1-mini
   url: "http://localhost:8250"
   enabled: true
-  reference_id: "dutch2"
-  temperature: 0.2     # ultra_consistent
-  top_p: 0.5           # ultra_consistent
+  reference_id: "dutch2"      # 30s ElevenLabs NL reference
+  temperature: 0.5            # Expressiviteit
+  top_p: 0.6                  # Diversiteit
+  streaming: true             # Per-zin TTS (snellere perceived latency)
 
 system_prompt: |
-  Je bent de AI van NerdCarX...
+  Je bent NerdCarX, een kleine robotauto...
 
-vision:
-  mock_image_path: "vad-desktop/test_foto.jpg"
+emotions:
+  default: "neutral"
+  available: [happy, sad, angry, surprised, neutral, curious, ...]
 ```
 
 ---
@@ -137,43 +152,37 @@ curl http://localhost:8250/v1/health   # Fish Audio TTS
 
 ---
 
-## Volgende Stappen
+## Afgeronde Verbeteringen
 
-### 1. Orchestrator Fish Audio Integratie ✅
+### TTS Nederlandse Uitspraak ✅
+- System prompt aangepast: korte antwoorden (1-3 zinnen), geen markdown
+- Text normalisatie: acroniemen → NL fonetiek ("API" → "aa-pee-ie")
+- Getallen → woorden ("247" → "tweehonderdzevenenveertig")
+- 30s ElevenLabs reference met alle emoties en probleemwoorden
 
-De orchestrator is aangepast voor Fish Audio API:
-- Config loading met reference_id, temperature, top_p, format
-- `synthesize_speech()` roept `/v1/tts` aan
-- Health check via `/v1/health`
-- Hot reload werkt met nieuwe TTS variabelen
+### Pseudo-Streaming ✅
+- LLM genereert volledige response
+- Response wordt gesplitst in zinnen
+- TTS per zin via SSE stream
+- Audio direct afgespeeld terwijl volgende zin TTS draait
+- **~3x snellere perceived latency**
 
-### 2. End-to-end Testing ⏳
+### Playback Interrupt ✅
+- Spatiebalk onderbreekt audio playback
+- Werkt in streaming mode
+- Terminal settings correct hersteld bij exit
 
-- [ ] Fish Audio Docker starten + reference uploaden
-- [ ] Volledige loop testen: spraak → STT → LLM → TTS → audio
-- [ ] Timing per component verifiëren
+## Bekende Beperkingen (Acceptabel)
 
-### 3. Fase 1 Afronden
+| Issue | Opmerking |
+|-------|-----------|
+| Sommige woorden Engels | Fish Audio limitatie |
+| Vraagintonatie niet altijd goed | Model limitatie |
+| Kleine pauzes tussen zinnen | Trade-off voor snelheid |
 
-- [x] TTS latency opgelost (D009 - Fish Audio ~1.2s vs Chatterbox 5-20s)
-- [x] Orchestrator Fish Audio integratie
-- [x] End-to-end test (zie `tts/test_output/full_flow_test_2026-01-11.md`)
+## Volgende Stap
 
-### 4. Open Issues / Wensen
-
-**TTS Kwaliteit:**
-- [ ] Parameters vergelijken: waarom klinkt het Engelser dan in test script?
-- [ ] Kortere zinnen genereren in LLM prompt?
-
-**STT:**
-- [ ] Voxtral negeert soms `language: 'nl'` - transcribeert Engels
-
-**Playback Interrupt (wens):**
-- [ ] Playback onderbreken tijdens afspelen (voice-based of keyboard)
-- Opties: VAD tijdens playback, keyboard shortcut, of wake word
-- Audio echo is uitdaging bij voice-based oplossing
-
-**→ Daarna: Fase 2: Refactor + Dockerizen**
+**→ Fase 2: Pipeline testen op Raspberry Pi 5**
 
 ---
 
@@ -184,9 +193,9 @@ De orchestrator is aangepast voor Fish Audio API:
 | Aspect | Waarde |
 |--------|--------|
 | Model | fishaudio/openaudio-s1-mini |
-| Latency | ~1.2s per zin |
-| Nederlands | Via reference audio (dutch2) |
-| Parameters | temperature=0.2, top_p=0.5 (ultra_consistent) |
+| Latency | ~600ms per zin (streaming) |
+| Nederlands | Via 30s ElevenLabs reference (dutch2) |
+| Parameters | temperature=0.5, top_p=0.6 |
 
 **Geteste alternatieven:**
 | Model | Latency | Status |
@@ -194,9 +203,9 @@ De orchestrator is aangepast voor Fish Audio API:
 | Chatterbox | 5-20s | ❌ Te traag |
 | VibeVoice | 1-2s | ❌ Belgisch accent |
 | Coqui XTTS-v2 | - | ❌ Project dood |
-| Fish Audio | ~1.2s | ✅ GEKOZEN |
+| Fish Audio | ~600ms | ✅ GEKOZEN |
 
-**Reference audio:** `tts/fishaudio/elevenreference/reference2_NL_FM.mp3`
+**Reference audio:** `original_fish-speech-REFERENCE/references/dutch2/reference.mp3` (30s)
 
 ---
 
@@ -214,9 +223,12 @@ De orchestrator is aangepast voor Fish Audio API:
 | 2026-01-11 | TTS: Chatterbox getest maar te traag (5-20s) |
 | 2026-01-11 | TTS: Fish Audio S1-mini gekozen (D009) - ~1.2s |
 | 2026-01-11 | Config.yml bijgewerkt voor Fish Audio |
-| 2026-01-11 | Documentatie bijgewerkt |
 | 2026-01-11 | Orchestrator aangepast voor Fish Audio API |
-| 2026-01-11 | End-to-end test uitgevoerd (resultaten in tts/test_output/) |
+| 2026-01-16 | Text normalisatie voor NL uitspraak |
+| 2026-01-16 | 30s ElevenLabs reference audio |
+| 2026-01-16 | Pseudo-streaming: TTS per zin via SSE |
+| 2026-01-16 | Spatiebalk interrupt voor audio playback |
+| 2026-01-16 | **Fase 1 AFGEROND** |
 
 ---
 

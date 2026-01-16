@@ -178,8 +178,8 @@ Een interactieve AI-gestuurde robotauto bouwen die:
 | Fase | Naam | Beschrijving | Status |
 |------|------|--------------|--------|
 | 0 | [Concept](archive/0.concept/) | Ontwerp en voorbereiding | Gearchiveerd |
-| 1 | [Desktop Compleet](fase1-desktop/) | STT + LLM + Vision + Tools + TTS | **Actief** |
-| 2 | [Refactor + Docker](fase2-refactor/) | Code cleanup, dockerizen, SOLID/KISS | Gepland |
+| 1 | [Desktop Compleet](fase1-desktop/) | STT + LLM + Vision + Tools + TTS | ✅ Afgerond |
+| 2 | [Refactor + Docker](fase2-refactor/) | Code cleanup, dockerizen, SOLID/KISS | **Actief** |
 | 3 | [Pi Integratie](fase3-pi/) | Hardware, Camera Module 3, YOLO safety, opt. SLAM | Gepland |
 | 4 | [Autonomie](fase4-autonomie/) | Idle behaviors, SLAM, pose detectie | Gepland |
 
@@ -293,21 +293,24 @@ python vad_conversation.py
 
 ## Status
 
-**Huidige fase:** 1 - Desktop Compleet (afrondingsfase)
+**Huidige fase:** 2 - Refactor + Docker
 
-**Fase 1 voortgang:**
-- ✅ Kernonderdelen geïmplementeerd (2026-01-11)
-- ⏳ TODO items nog open - zie [`fase1-desktop/TODO.md`](fase1-desktop/TODO.md)
-- **Volgende:** TODO afronden → hardware testen → Fase 2
+**Fase 1 - Desktop Compleet:** ✅ AFGEROND (2026-01-16)
+- Volledige pipeline: VAD → STT → LLM → TTS → Speaker
+- Function calling: `take_photo`, `show_emotion`
+- Text normalisatie voor NL uitspraak (acroniemen, getallen)
+- Pseudo-streaming: TTS per zin voor ~3x snellere perceived latency
+- Spatiebalk interrupt tijdens audio playback
+- Zie [`fase1-desktop/README.md`](fase1-desktop/README.md) voor details
 
 **Wat werkt:**
-- STT (Voxtral) - transcriptie via vLLM op GPU1
-- LLM (Ministral 8B/14B) - responses + function calling op GPU0
+- STT (Voxtral Mini 3B) - transcriptie via vLLM op GPU1
+- LLM (Ministral 14B) - responses + function calling op GPU0
 - Vision (take_photo tool) - foto analyse on-demand
 - Emotion State Machine - persistente emotie state met 15 emoties
-- TTS (Fish Audio S1-mini) - Nederlandse spraaksynthese via reference audio
-- VAD - hands-free gesprekken met duidelijke debug output
-- Centrale config (config.yml) met hot reload
+- TTS (Fish Audio S1-mini) - Nederlandse spraaksynthese + streaming
+- VAD - hands-free gesprekken met gedetailleerde timing output
+- Centrale config (config.yml)
 
 **Hardware status:** ✅ PiCar-X geassembleerd (2026-01-14)
 - Raspberry Pi 5 (16GB) met Pi OS Lite (Trixie, 64-bit)
@@ -318,7 +321,7 @@ python vad_conversation.py
 - I2S speaker werkend (mono)
 - Camera OV5647 werkend (exposure tuning nodig)
 - USB microfoon aanwezig (nog niet getest met AI)
-- AI integratie: nog niet gestart (wacht op fase 1 afronding)
+- AI integratie: klaar voor Fase 2/3
 
 **Bestelde/geplande hardware:** ([D010](DECISIONS.md), [D012](DECISIONS.md))
 - **Camera Module 3 (IMX708)**: te bestellen - autofocus, HDR
@@ -331,26 +334,19 @@ python vad_conversation.py
 
 **TTS (Fish Audio S1-mini):**
 - Model: fishaudio/openaudio-s1-mini (0.5B params)
-- Nederlands via ElevenLabs reference audio (dutch2)
-- Emotie markers in tekst ondersteund
-- Docker container met GPU
+- Nederlands via 30s ElevenLabs reference audio (dutch2)
+- Pseudo-streaming: per-zin TTS via SSE
+- Parameters: temp=0.5, top_p=0.6
 - Service op port 8250
 
 **Performance:**
-- Vision latency: ~5-10s (acceptabel voor demo)
-- TTS latency: ~1.2s per zin (Fish Audio)
-- Emotion response: instant (tool call parsing)
+- STT latency: 150-750ms
+- LLM latency: 700-1300ms
+- TTS latency: ~600ms per zin (streaming)
+- Perceived latency: ~1.1s (streaming) vs ~3.6s (batch)
+- Vision latency: ~5-10s (dubbele LLM call)
 
-**Openstaande verbeteringen:** Zie [`fase1-desktop/TODO.md`](fase1-desktop/TODO.md)
-
-De TODO bevat uitgebreide plannen voor:
-1. TTS klinkt soms Engelserig → text normalisatie (afkortingen, getallen)
-2. Temperature/top_p tuning → stap-voor-stap test aanpak
-3. Langere reference audio → "NL torture test" met alle lastige klanken
-4. Pseudo-streaming → per zin genereren voor snellere response (Pi ↔ Desktop)
-5. Playback interrupt → spatiebalk onderbreking
-
-**Laatste update:** 2026-01-16 - Camera Module 3 en 4-laags perceptie architectuur gepland
+**Laatste update:** 2026-01-16 - Fase 1 AFGEROND
 
 > **Meer weten?**
 > - [`ARCHITECTURE.md`](ARCHITECTURE.md) - Uitgebreide architectuur documentatie met diagrammen

@@ -1,7 +1,7 @@
 # NerdCarX - Architecture Overview
 
 > **Last updated:** 2026-01-16
-> **Current Phase:** 1 (Desktop Complete)
+> **Current Phase:** 2 (Refactor + Docker) - Phase 1 AFGEROND
 
 ---
 
@@ -371,8 +371,8 @@ The system separates perception responsibilities by **latency requirements** and
 |---------|------------|---------|---------|
 | **STT** | Voxtral Mini 3B + vLLM | 150-750ms | Dutch speech recognition, noise robust |
 | **LLM** | Ministral 14B Q8 + Ollama | 700-1300ms | Conversation, reasoning, function calling, vision |
-| **TTS** | Fish Audio S1-mini | ~1.2s/sentence | Dutch voice synthesis via reference audio |
-| **Orchestrator** | FastAPI | - | Routes requests, manages state, executes tools |
+| **TTS** | Fish Audio S1-mini | ~600ms/sentence (streaming) | Dutch voice synthesis via 30s reference audio |
+| **Orchestrator** | FastAPI | - | Routes requests, manages state, executes tools, SSE streaming |
 | **Object Detection** | YOLO Nano/Small | Real-time | Quick object awareness on Pi |
 
 ---
@@ -456,17 +456,20 @@ User: "Je bent geweldig!" → LLM calls show_emotion("happy") → state changes 
 
 ## 9. Current Status
 
-### What's Working (Phase 1)
+### Phase 1: Desktop Complete - AFGEROND (2026-01-16)
 
 | Component | Status | Notes |
 |-----------|--------|-------|
-| Speech-to-Text | Working | Dutch, noise-robust, 150-750ms |
-| Language Model | Working | Function calling, vision, 700-1300ms |
-| Text-to-Speech | Working | Dutch voice via reference audio, ~1.2s/sentence |
-| Emotion State Machine | Working | 15 emotions, persistent state |
-| Vision Tool | Working | Photo analysis on demand |
-| VAD Conversation | Working | Hands-free interaction |
-| Central Config | Working | Hot-reload supported |
+| Speech-to-Text | ✅ | Dutch, noise-robust, 150-750ms |
+| Language Model | ✅ | Function calling, vision, 700-1300ms |
+| Text-to-Speech | ✅ | Dutch voice via 30s reference, ~600ms/sentence (streaming) |
+| Text Normalization | ✅ | Acroniemen, getallen naar NL fonetiek |
+| Pseudo-streaming | ✅ | TTS per zin via SSE, ~3x snellere perceived latency |
+| Playback Interrupt | ✅ | Spatiebalk onderbreekt audio |
+| Emotion State Machine | ✅ | 15 emotions, persistent state |
+| Vision Tool | ✅ | Photo analysis on demand |
+| VAD Conversation | ✅ | Hands-free interaction met timing output |
+| Central Config | ✅ | Hot-reload supported |
 
 ### Performance
 
@@ -474,19 +477,20 @@ User: "Je bent geweldig!" → LLM calls show_emotion("happy") → state changes 
 |--------|-------|
 | STT latency | 150-750ms |
 | LLM latency | 700-1300ms |
-| TTS latency | ~1.2s per sentence |
+| TTS latency | ~600ms per sentence (streaming) |
+| Perceived latency | ~1.1s (streaming) vs ~3.6s (batch) |
 | Vision latency | 5-10s (dual LLM call) |
-| **Total round-trip** | **~3 seconds** |
+| **Total round-trip** | **~2.5 seconds (streaming)** |
 
-### Currently Refining
+### Bekende Beperkingen (Acceptabel)
 
-The following items from [fase1-desktop/TODO.md](fase1-desktop/TODO.md) are being addressed:
+| Issue | Opmerking |
+|-------|-----------|
+| Sommige woorden Engels | Fish Audio limitatie |
+| Vraagintonatie niet altijd goed | Model limitatie |
+| Kleine pauzes tussen zinnen | Trade-off voor snelheid |
 
-1. **TTS text normalization** - Acronyms and numbers sometimes sound English (e.g., "API" → "aa-pee-ie")
-2. **TTS parameter tuning** - Finding optimal temperature/top_p balance
-3. **Optional improvements** - Longer reference audio, pseudo-streaming per sentence
-
-### Hardware Status (Phase 3 Prep)
+### Hardware Status (Phase 2/3 Prep)
 
 | Component | Status | Notes |
 |-----------|--------|-------|
@@ -498,7 +502,7 @@ The following items from [fase1-desktop/TODO.md](fase1-desktop/TODO.md) are bein
 | OLED Display | Pending | Available, not yet connected |
 | SunFounder Libraries | Installed | robot-hat, vilib, picar-x |
 
-> Hardware assembly completed 2026-01-14. AI integration awaiting Phase 1 completion.
+> Hardware assembly completed 2026-01-14. Desktop pipeline ready, klaar voor Fase 2/3.
 
 ---
 
@@ -511,22 +515,22 @@ flowchart LR
     p3[Phase 3<br/>Pi 5 Integration]
     p4[Phase 4<br/>Autonomy]
 
-    p1 -->|"current"| p2
-    p2 --> p3
+    p1 -->|"✅ done"| p2
+    p2 -->|"current"| p3
     p3 --> p4
 
     style p1 fill:#c8e6c9,stroke:#2e7d32
-    style p2 fill:#fff3e0
+    style p2 fill:#fff3e0,stroke:#ff9800
     style p3 fill:#fff3e0
     style p4 fill:#fff3e0
 ```
 
-### Phase 1: Desktop Complete (Current)
-All AI components working end-to-end on desktop. Hands-free Dutch conversations with emotion awareness and vision capability.
+### Phase 1: Desktop Complete (AFGEROND)
+All AI components working end-to-end on desktop. Hands-free Dutch conversations with emotion awareness, vision capability, pseudo-streaming TTS, and playback interrupt.
 
 **Details:** [fase1-desktop/README.md](fase1-desktop/README.md)
 
-### Phase 2: Refactor + Docker
+### Phase 2: Refactor + Docker (Current)
 Clean up code (SOLID, KISS, DRY), full Docker Compose stack, API documentation, testing. Goal: `docker compose up` starts everything.
 
 **Details:** [fase2-refactor/PLAN.md](fase2-refactor/PLAN.md)
@@ -628,8 +632,8 @@ The architecture is designed (Phase 2 refactor) to easily swap between local and
 |----------|----------|
 | Main README | [README.md](README.md) |
 | All decisions with rationale | [DECISIONS.md](DECISIONS.md) |
-| Phase 1 details | [fase1-desktop/README.md](fase1-desktop/README.md) |
-| Open improvements | [fase1-desktop/TODO.md](fase1-desktop/TODO.md) |
+| Phase 1 details (AFGEROND) | [fase1-desktop/README.md](fase1-desktop/README.md) |
+| Phase 1 summary | [fase1-desktop/TODO.md](fase1-desktop/TODO.md) |
 | Original concept (detailed) | [archive/0.concept/](archive/0.concept/) |
 | Central configuration | [fase1-desktop/config.yml](fase1-desktop/config.yml) |
 

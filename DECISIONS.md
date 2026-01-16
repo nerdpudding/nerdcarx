@@ -314,9 +314,9 @@ Chatterbox Multilingual voor Text-to-Speech met Nederlandse spraaksynthese.
 
 ### D009: TTS - Fish Audio S1-mini (vervangt D008)
 
-**Datum:** 2026-01-11
+**Datum:** 2026-01-11, bijgewerkt 2026-01-16
 **Fase:** 1
-**Status:** ✅ Geïmplementeerd
+**Status:** ✅ Geïmplementeerd + Verbeterd
 
 **Besluit:**
 Fish Audio S1-mini vervangt Chatterbox als TTS vanwege betere latency.
@@ -325,12 +325,18 @@ Fish Audio S1-mini vervangt Chatterbox als TTS vanwege betere latency.
 |--------|-------|
 | Model | `fishaudio/openaudio-s1-mini` (0.5B parameters) |
 | Backend | Docker container met GPU |
-| Taal | Nederlands via reference audio |
-| Latency | ~1.2s per zin (vs 5-20s Chatterbox) |
+| Taal | Nederlands via 30s ElevenLabs reference audio |
+| Latency | ~600ms per zin (streaming) / ~1.2s (batch) |
 | Port | 8250 |
 
+**Verbeteringen (2026-01-16):**
+- **Pseudo-streaming**: TTS per zin via SSE voor ~3x snellere perceived latency
+- **Text normalisatie**: acroniemen → NL fonetiek ("API" → "aa-pee-ie")
+- **Langere reference**: 30s ElevenLabs audio met alle emoties en probleemwoorden
+- **Playback interrupt**: Spatiebalk onderbreekt audio in streaming mode
+
 **Rationale:**
-1. ~4x sneller dan Chatterbox (1.2s vs 5-20s)
+1. ~4x sneller dan Chatterbox (streaming nog sneller perceived)
 2. #1 op TTS-Arena2 benchmark
 3. Voice cloning via reference audio
 4. Actief ontwikkeld (MIT licentie)
@@ -339,7 +345,7 @@ Fish Audio S1-mini vervangt Chatterbox als TTS vanwege betere latency.
 | Model | Latency | Nederlands | Reden afgewezen |
 |-------|---------|------------|-----------------|
 | Chatterbox | 5-20s | ✅ Goed | Te traag |
-| VibeVoice | 1-2s | ❌ Belgisch accent | Kwaliteit |
+| VibeVoice | 1-2s | ❌ Belgisch accent | Slechte Kwaliteit |
 | Coqui XTTS-v2 | - | - | Project dood, Docker onbeschikbaar |
 | Piper | <100ms | ✅ | Backup optie (minder expressief) |
 
@@ -353,6 +359,7 @@ git clone https://huggingface.co/fishaudio/openaudio-s1-mini checkpoints/openaud
 # Docker starten
 docker run --gpus device=0 --name fish-tts \
     -v $(pwd)/checkpoints:/app/checkpoints \
+    -v $(pwd)/references:/app/references \
     -p 8250:8080 --entrypoint uv \
     fishaudio/fish-speech \
     run tools/api_server.py --listen 0.0.0.0:8080 --compile
@@ -361,21 +368,33 @@ docker run --gpus device=0 --name fish-tts \
 **Reference Audio:**
 - Bron: ElevenLabs Nederlandse vrouwenstem
 - ID: `dutch2`
-- Bestanden: `fase1-desktop/tts/fishaudio/elevenreference/`
+- Locatie: `original_fish-speech-REFERENCE/references/dutch2/reference.mp3` (30s)
+- Bevat: alle emoties, probleemwoorden, moeilijke klanken (sch, ui, eu, ij, g/ch)
 
-**Parameters (geteste configuraties):**
+**Parameters (finale configuratie):**
 | Configuratie | temperature | top_p | Omschrijving |
 |--------------|-------------|-------|--------------|
-| very_consistent | 0.3 | 0.6 | Iets natuurlijker, kleine variatie |
-| **ultra_consistent** | **0.2** | **0.5** | **GEKOZEN - beste Nederlandse uitspraak** |
+| **Huidig** | **0.5** | **0.6** | **Expressief met 30s reference** |
+| ultra_consistent (oud) | 0.2 | 0.5 | Was te monotoon |
+
+**Streaming:**
+```yaml
+# config.yml
+tts:
+  streaming: true  # Per-zin TTS via SSE
+```
 
 **API Voorbeeld:**
 ```bash
 curl -X POST http://localhost:8250/v1/tts \
     -H "Content-Type: application/json" \
-    -d '{"text": "Hallo!", "reference_id": "dutch2", "temperature": 0.2, "top_p": 0.5, "format": "wav"}' \
+    -d '{"text": "Hallo!", "reference_id": "dutch2", "temperature": 0.5, "top_p": 0.6, "format": "wav"}' \
     --output test.wav
 ```
+
+**Bekende beperkingen:**
+- Sommige woorden klinken nog Engels (Fish Audio limitatie)
+- Vraagintonatie niet altijd correct (model limitatie)
 
 **Referentie:** [Fish Audio README](fase1-desktop/tts/fishaudio/README.md)
 
@@ -522,4 +541,4 @@ Definitieve hardware configuratie voor NerdCarX. LiDAR is out of scope (te duur,
 
 ---
 
-*Laatst bijgewerkt: 2026-01-16 (Hardware uitbreiding + Camera Module 3)*
+*Laatst bijgewerkt: 2026-01-16 (Fase 1 AFGEROND - TTS streaming + text normalisatie)*
