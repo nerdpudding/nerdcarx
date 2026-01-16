@@ -1,6 +1,6 @@
 # NerdCarX - Architecture Overview
 
-> **Last updated:** 2026-01-13
+> **Last updated:** 2026-01-16
 > **Current Phase:** 1 (Desktop Complete)
 
 ---
@@ -119,17 +119,33 @@ NerdCarX is built on the **SunFounder PiCar-X** platform - an AI-ready robot car
 
 ### Hardware Components
 
-| Component | Description |
-|-----------|-------------|
-| **Robot HAT** | Expansion board with motor driver, I2S audio, mono speaker, PWM/ADC, LED, button |
-| **2-Axis Camera Mount** | Pan/tilt servos for camera positioning |
-| **Camera Module** | OV5647, 5MP, 1080p/30fps, 720p/60fps, 65° FOV |
-| **Ultrasonic Sensor** | HC-SR04, 2-400cm range, 3mm accuracy |
-| **Grayscale Module** | 3-channel line/cliff detection |
-| **DC Motors** | Differential drive for movement |
-| **Steering Servo** | Front wheel steering |
-| **Battery Pack** | 2x 18650, 2000mAh, 7-12V |
-| **OLED Display** *(added)* | 0.96" I2C (128x64) - Shows robot's emotional state (see Emotion State Machine) |
+| Component | Description | Status |
+|-----------|-------------|--------|
+| **Robot HAT v4** | Expansion board with motor driver, I2S audio, mono speaker, PWM/ADC, LED, button | Installed |
+| **2-Axis Camera Mount** | Pan/tilt servos for camera positioning | Installed |
+| **Camera Module 3** | IMX708, 12MP, autofocus, HDR ([D010](DECISIONS.md)) | **Planned** |
+| **Camera OV5647** | 5MP, 1080p/30fps, 65° FOV | Installed (to be replaced) |
+| **Ultrasonic Sensor** | HC-SR04, 2-400cm range, on D2/D3 | Installed |
+| **Grayscale Module** | 3-channel line/cliff detection, on A0-A2 | Installed |
+| **2x VL53L0X ToF** | Time-of-Flight, 0-200cm, via I2C hub ([D012](DECISIONS.md)) | **Ordered** |
+| **TCA9548A I2C Hub** | 8-channel I2C multiplexer @ 0x70 ([D012](DECISIONS.md)) | **Ordered** |
+| **DC Motors** | Differential drive for movement | Installed |
+| **Steering Servo** | Front wheel steering, on P2 | Installed |
+| **Battery Pack** | 2x 18650, 2000mAh, 7-12V | Installed |
+| **OLED Display** | SSD1306 0.96" I2C @ 0x3C - Emotion display ([D012](DECISIONS.md)) | Available |
+| **2x Grove LED** | White indicator LEDs on D0/D1 ([D012](DECISIONS.md)) | **Ordered** |
+
+### I2C Bus Configuration
+
+```
+I2C-1 (GPIO2 SDA, GPIO3 SCL)
+├── OLED SSD1306 @ 0x3C (direct)
+└── TCA9548A Hub @ 0x70
+    ├── CH0: VL53L0X ToF Left @ 0x29
+    └── CH1: VL53L0X ToF Right @ 0x29
+```
+
+> **Full hardware reference:** [docs/hardware/HARDWARE-REFERENCE.md](docs/hardware/HARDWARE-REFERENCE.md)
 
 ### Built-in Capabilities (Standard PiCar-X)
 
@@ -307,6 +323,47 @@ flowchart TB
 - LLM receives this context automatically, enabling awareness without explicit photo requests
 - Enables use cases like: "drive towards the user" (YOLO detects person, motors respond)
 - `take_photo` tool still available for detailed scene description when needed
+
+### 4-Layer Perception Architecture (Planned)
+
+> **Note:** This architecture is planned for Phase 3+ with Camera Module 3. See [D011](DECISIONS.md#d011-4-laags-perceptie-architectuur) for decision rationale.
+
+The system separates perception responsibilities by **latency requirements** and **criticality**:
+
+| Layer | Purpose | Location | Latency | Phase |
+|-------|---------|----------|---------|-------|
+| **0 Safety** | Obstacle avoidance, emergency stop | Pi local | <50ms | 3 |
+| **1 Navigation** | SLAM, path planning, localization | Pi local | Real-time | 3-4 |
+| **2 Perception** | Pose detection, VLM, heavy models | Desktop GPU | ~200ms OK | 4+ |
+| **3 Conversation** | STT → LLM → TTS | Desktop | Not critical | 1-3 |
+
+**Why this separation:**
+- **Layer 0 must be local:** WiFi can fail → robot must still stop for obstacles
+- **Layer 1 must be local:** Control loops for SLAM need predictable timing
+- **Layer 2 can be remote:** Pose detection ("wave → reaction") tolerates ~200ms delay
+- **Layer 3 is already remote:** Current STT/LLM/TTS pipeline works well
+
+```
+                Camera Module 3 (IMX708)
+                         │
+         ┌───────────────┴───────────────┐
+         │                               │
+         ▼                               ▼
+  ┌──────────────┐               ┌──────────────┐
+  │  Pi Local    │               │ Desktop GPU  │
+  │  YOLO Nano   │               │ Pose Model   │
+  │  Safety      │               │ VLM Queries  │
+  │  SLAM        │  ~200ms       │ Heavy Det.   │
+  └──────┬───────┘  stream       └──────┬───────┘
+         │                               │
+         ▼                               ▼
+  ┌──────────────┐               ┌──────────────┐
+  │ Motor Stop   │               │ Events back  │
+  │ Navigate     │               │ to Pi/LLM    │
+  └──────────────┘               └──────────────┘
+```
+
+**Reference:** [4-Laags Perceptie Architectuur](docs/feature-proposals/4-layer-perception-architecture.md)
 
 ### Service Details
 
@@ -492,13 +549,32 @@ The modular architecture creates a **foundation** that can grow without rewrites
 
 ### Hardware Extensions
 
-| Extension | What It Enables |
-|-----------|-----------------|
-| Additional sensors (temp, light, distance) | Environmental awareness, context-aware responses |
-| Multiple cameras | Wider field of view, depth perception |
-| Different display (LCD, LED matrix) | Richer visual feedback |
-| Additional actuators (arm, gripper) | Physical interaction capabilities |
-| Lidar/depth sensor | Better navigation, 3D awareness |
+| Extension | What It Enables | Status |
+|-----------|-----------------|--------|
+| **Camera Module 3 (IMX708)** | Autofocus, HDR, better low-light, dual vision | **Planned (D010)** |
+| Additional sensors (temp, light, distance) | Environmental awareness, context-aware responses | Future |
+| Multiple cameras | Wider field of view, depth perception | Future |
+| Different display (LCD, LED matrix) | Richer visual feedback | Future |
+| Additional actuators (arm, gripper) | Physical interaction capabilities | Future |
+| Lidar/depth sensor | Better navigation, 3D awareness | Future |
+
+### Perception & Navigation (Planned)
+
+Based on the [4-Layer Perception Architecture](#4-layer-perception-architecture-planned) and [Autonomous Room Discovery](docs/feature-proposals/autonomous-room-discovery.md):
+
+| Capability | Location | Phase | Use Case |
+|------------|----------|-------|----------|
+| **YOLO Safety Layer** | Pi local | 3 | Obstacle avoidance without WiFi dependency |
+| **Video Streaming** | Pi → Desktop | 3 | ~200ms latency for remote processing |
+| **SLAM Mapping** | Pi local | 3-4 | Build occupancy grid, localization |
+| **Pose Detection** | Desktop GPU | 4+ | Gesture recognition ("wave → reaction") |
+| **VLM Queries** | Desktop GPU | 4+ | "What do you see?" with richer understanding |
+| **Room Discovery** | Pi + Desktop | 4 | Semantic labeling, navigate to "kitchen" |
+
+**SLAM Library Options (to be decided):**
+- ORB-SLAM3 - Feature-based, good for monocular
+- RTAB-Map - RGB-D optimized, but works with mono
+- Stella-VSLAM - Lightweight, good Pi compatibility
 
 ### AI Model Flexibility (Local ↔ Cloud)
 
@@ -569,13 +645,14 @@ The architecture is designed (Phase 2 refactor) to easily swap between local and
 | OS | Linux (Ubuntu 22.04+) | Linux |
 
 **Robot (Pi 5 Client):**
-| Component | Specification |
-|-----------|---------------|
-| Raspberry Pi 5 | 8GB RAM (16GB recommended) |
-| PiCar-X Kit | v2.0 |
-| OLED Display | 0.96" I2C (128x64) |
-| USB Microphone | Omnidirectional |
-| Camera | OV5647 via CSI |
+| Component | Specification | Status |
+|-----------|---------------|--------|
+| Raspberry Pi 5 | 8GB RAM (16GB recommended) | Ready |
+| PiCar-X Kit | v2.0 | Ready |
+| OLED Display | 0.96" I2C (128x64) | Pending |
+| USB Microphone | Omnidirectional | Ready |
+| Camera | OV5647 via CSI | Ready (to be replaced) |
+| **Camera Module 3** | IMX708, autofocus, HDR | **Planned ([D010](DECISIONS.md))** |
 
 ---
 

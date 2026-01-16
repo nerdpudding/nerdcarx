@@ -95,8 +95,10 @@ Een interactieve AI-gestuurde robotauto bouwen die:
 | 0 | [Concept](archive/0.concept/) | Ontwerp en voorbereiding | Gearchiveerd |
 | 1 | [Desktop Compleet](fase1-desktop/) | STT + LLM + Vision + Tools + TTS | **Actief** |
 | 2 | [Refactor + Docker](fase2-refactor/) | Code cleanup, dockerizen, SOLID/KISS | Gepland |
-| 3 | [Pi Integratie](fase3-pi/) | Hardware verbinding met Pi 5 | Wacht op hardware |
-| 4 | [Autonomie](fase4-autonomie/) | Idle behaviors, proactieve interactie | Gepland |
+| 3 | [Pi Integratie](fase3-pi/) | Hardware, Camera Module 3, YOLO safety, opt. SLAM | Gepland |
+| 4 | [Autonomie](fase4-autonomie/) | Idle behaviors, SLAM, pose detectie | Gepland |
+
+> **Nieuw:** [4-Laags Perceptie Architectuur](docs/feature-proposals/4-layer-perception-architecture.md) gepland voor Fase 3+.
 
 > **Fase 1** omvat alles wat nodig is voor een werkende desktop demo:
 > STT, LLM, Vision (via take_photo tool), Function Calling (emoties), en TTS.
@@ -213,14 +215,22 @@ python vad_conversation.py
 **Hardware status:** ✅ PiCar-X geassembleerd (2026-01-14)
 - Raspberry Pi 5 (16GB) met Pi OS Lite (Trixie, 64-bit)
 - Active cooler geïnstalleerd
-- Robot HAT gemonteerd en werkend
+- Robot HAT v4 gemonteerd en werkend
 - SunFounder libraries geïnstalleerd (robot-hat, vilib, picar-x)
 - Motoren en servo's getest en werkend
 - I2S speaker werkend (mono)
-- Camera werkend (exposure tuning nodig - donker beeld)
+- Camera OV5647 werkend (exposure tuning nodig)
 - USB microfoon aanwezig (nog niet getest met AI)
-- OLED display: nog niet aangesloten
 - AI integratie: nog niet gestart (wacht op fase 1 afronding)
+
+**Bestelde/geplande hardware:** ([D010](DECISIONS.md), [D012](DECISIONS.md))
+- **Camera Module 3 (IMX708)**: te bestellen - autofocus, HDR
+- **TCA9548A I2C Hub**: besteld - voor meerdere I2C devices
+- **2x VL53L0X ToF sensoren**: besteld - zijwaartse afstandsmeting
+- **2x Grove LED (wit)**: besteld - indicator/waarschuwingslichten
+- **OLED WPI438 (SSD1306)**: aanwezig - emotie display
+
+> **Hardware reference:** [`docs/hardware/HARDWARE-REFERENCE.md`](docs/hardware/HARDWARE-REFERENCE.md)
 
 **TTS (Fish Audio S1-mini):**
 - Model: fishaudio/openaudio-s1-mini (0.5B params)
@@ -245,7 +255,7 @@ De TODO bevat uitgebreide plannen voor:
 
 **Volgende stap:** Implementeer TODO items, daarna Fase 2 (Refactor)
 
-**Laatste update:** 2026-01-13 - ARCHITECTURE.md toegevoegd met uitgebreide documentatie
+**Laatste update:** 2026-01-16 - Camera Module 3 en 4-laags perceptie architectuur gepland
 
 > **Meer weten?**
 > - [`ARCHITECTURE.md`](ARCHITECTURE.md) - Uitgebreide architectuur documentatie met diagrammen

@@ -1,8 +1,13 @@
-# Fase 5: Autonomie & Polish
+# Fase 4: Autonomie & Polish
 
 **Status:** Gepland
-**Doel:** Personality en autonome gedragingen
-**Afhankelijk van:** Fase 4 (Vision)
+**Doel:** Personality, autonome gedragingen, en geavanceerde perceptie
+**Afhankelijk van:** Fase 3 (Pi Integratie)
+
+> **Gerelateerde proposals:**
+> - [Autonomous Room Discovery](../docs/feature-proposals/autonomous-room-discovery.md)
+> - [4-Laags Perceptie Architectuur](../docs/feature-proposals/4-layer-perception-architecture.md)
+> - [Hardware Reference](../docs/hardware/HARDWARE-REFERENCE.md)
 
 ## Overzicht
 
@@ -221,13 +226,30 @@ class SafeMovement:
 
 *Voeg hier notities, learnings en beslissingen toe tijdens de implementatie*
 
+## SLAM & Navigatie (Laag 1 - [D011](../DECISIONS.md))
+
+> Afhankelijk van wanneer SLAM basis in Fase 3 is gestart.
+
+- [ ] SLAM integratie met navigatie control
+- [ ] Waypoint systeem (opslaan/navigeren naar locaties)
+- [ ] Loop closure en map persistence
+- [ ] Frontier-based exploration ([Room Discovery Proposal](../docs/feature-proposals/autonomous-room-discovery.md))
+
+## Geavanceerde Perceptie (Laag 2 - Desktop GPU)
+
+- [ ] Pose detectie op desktop (MediaPipe / OpenPose)
+- [ ] Gesture recognition: "zwaai" → reactie
+- [ ] Persoon volgen via pose tracking
+- [ ] VLM queries voor rijkere scene understanding
+
 ## Toekomstige Ideeën
 
 - Voice emotion detection (toon van stem analyseren)
-- Multi-room awareness (waar in huis)
+- Multi-room awareness (waar in huis) - zie [Room Discovery](../docs/feature-proposals/autonomous-room-discovery.md)
 - Routine learning (patronen herkennen)
 - Multi-user support (verschillende personen herkennen)
 - Integration met smart home
+- LiDAR voor betere SLAM
 
 ---
 

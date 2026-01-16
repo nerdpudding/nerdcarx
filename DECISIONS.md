@@ -381,6 +381,111 @@ curl -X POST http://localhost:8250/v1/tts \
 
 ---
 
+### D010: Camera Module 3 (vervangt OV5647)
+
+**Datum:** 2026-01-16
+**Fase:** 3
+**Status:** Gepland
+
+**Besluit:**
+Upgrade van OV5647 (kit camera) naar Camera Module 3 (IMX708).
+
+| Aspect | OV5647 (huidig) | Camera Module 3 |
+|--------|-----------------|-----------------|
+| Sensor | OmniVision 5MP | Sony IMX708 12MP |
+| Autofocus | Nee | Ja |
+| HDR | Nee | Ja (stacked) |
+| Low-light | Matig | Beter |
+
+**Rationale:**
+1. Autofocus essentieel voor variabele afstanden (navigatie, close-up)
+2. HDR verbetert robuustheid bij wisselende lichtomstandigheden
+3. Hogere resolutie voor betere YOLO/SLAM feature detection
+4. Past bij hybride perceptie architectuur (lokaal + remote)
+
+**Alternatieven overwogen:**
+| Camera | Reden afgewezen |
+|--------|-----------------|
+| AI Camera (IMX500) | Model lock-in, duurder, minder flexibel voor hybride aanpak |
+| Arducam alternatieven | Minder documentatie, compatibility risico |
+| Huidige OV5647 houden | Geen autofocus, slechte low-light, beperkt voor SLAM |
+
+**Referentie:** [4-Laags Perceptie Architectuur](docs/feature-proposals/4-layer-perception-architecture.md)
+
+---
+
+### D011: 4-Laags Perceptie Architectuur
+
+**Datum:** 2026-01-16
+**Fase:** 3-4
+**Status:** Gepland
+
+**Besluit:**
+Implementeer een 4-laags architectuur die verantwoordelijkheden scheidt naar waar ze logisch thuishoren:
+
+| Laag | Doel | Locatie | Latency | Waarom |
+|------|------|---------|---------|--------|
+| **0 Safety** | Obstacle avoidance | Pi lokaal | <50ms | Moet werken zonder WiFi |
+| **1 Navigatie** | SLAM, route planning | Pi lokaal | Real-time | Control loops voorspelbaar |
+| **2 Perceptie** | Pose, VLM, heavy AI | Desktop GPU | ~200ms OK | GPU vrijheid |
+| **3 Conversatie** | STT→LLM→TTS | Desktop | Niet kritisch | Al geïmplementeerd |
+
+**Rationale:**
+1. Safety-kritische functies moeten blijven werken bij WiFi problemen
+2. Desktop GPU (RTX 4090/5070 Ti) biedt modelflexibiliteit voor zware taken
+3. ~200ms latency naar desktop is acceptabel voor niet-safety perceptie
+4. Schaalt naar SLAM en geavanceerde navigatie zonder architectuur wijziging
+
+**Dual Vision Pad:**
+```
+Camera Module 3
+      │
+      ├──► [Pi] YOLO nano → Safety (Laag 0)
+      │
+      └──► [Stream] → Desktop → Pose/VLM (Laag 2)
+```
+
+**Impact op bestaande plannen:**
+- Fase 3: Camera Module 3, YOLO safety, streaming setup
+- Fase 4: SLAM, pose detectie, room discovery features
+
+**Referentie:** [4-Laags Perceptie Architectuur](docs/feature-proposals/4-layer-perception-architecture.md)
+
+---
+
+### D012: Hardware Uitbreiding (ToF, LEDs, OLED, I2C Hub)
+
+**Datum:** 2026-01-16
+**Fase:** 3
+**Status:** Besteld
+
+**Besluit:**
+Definitieve hardware configuratie voor NerdCarX. LiDAR is out of scope (te duur, te veel stroom).
+
+**Nieuwe componenten:**
+
+| Component | Doel | Interface |
+|-----------|------|-----------|
+| TCA9548A I2C Hub | Meerdere I2C devices met zelfde adres | I2C @ 0x70 |
+| 2x VL53L0X ToF | Zijwaartse afstandsmeting (links/rechts) | I2C via hub @ 0x29 |
+| 2x Grove LED (wit) | Indicator/waarschuwingslichten | Digital D0, D1 |
+| OLED WPI438 (SSD1306) | Status display, emoties | I2C @ 0x3C |
+
+**Rationale:**
+1. ToF sensoren: Nauwkeuriger dan ultrasonic voor korte afstanden, goed voor zijwaartse obstacle detection
+2. I2C Hub: Nodig omdat beide VL53L0X hetzelfde vaste adres hebben (0x29)
+3. LEDs: Visuele feedback voor obstacle warning, kan ook als koplampen
+4. OLED: Emotie display (vervangt desktop simulator), status info
+
+**Wiring:**
+- LEDs op D0 (GPIO17) en D1 (GPIO4) - enige vrije digital pins
+- OLED direct op I2C bus (naast hub)
+- ToF sensoren via hub kanalen CH0 en CH1
+
+**Referentie:** [Hardware Reference](docs/hardware/HARDWARE-REFERENCE.md)
+
+---
+
 ## Open vragen
 
 > Vragen die nog beantwoord moeten worden tijdens implementatie.
@@ -411,7 +516,10 @@ curl -X POST http://localhost:8250/v1/tts \
 | D007 | Emotion State Machine | 2026-01-11 | ✅ Geïmplementeerd |
 | D008 | TTS Chatterbox | 2026-01-11 | ❌ Vervangen door D009 |
 | D009 | TTS Fish Audio S1-mini | 2026-01-11 | ✅ Geïmplementeerd |
+| D010 | Camera Module 3 | 2026-01-16 | Gepland |
+| D011 | 4-Laags Perceptie Architectuur | 2026-01-16 | Gepland |
+| D012 | Hardware Uitbreiding (ToF, LEDs, OLED) | 2026-01-16 | Besteld |
 
 ---
 
-*Laatst bijgewerkt: 2026-01-11 (TTS Fish Audio vervangt Chatterbox)*
+*Laatst bijgewerkt: 2026-01-16 (Hardware uitbreiding + Camera Module 3)*

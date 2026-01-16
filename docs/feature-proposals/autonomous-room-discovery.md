@@ -1,128 +1,187 @@
 # Feature Proposal: Autonomous Room Discovery
 
-## Summary
+## Samenvatting
 
-Enable NerdCarX to autonomously explore and map its environment, creating a semantic map with named locations (e.g., "kitchen", "living room") that enables natural navigation commands like "drive to the kitchen".
+NerdCarX kan zelfstandig een omgeving verkennen, een kaart bouwen, en kamers labelen. Dit maakt natuurlijke navigatie commando's mogelijk zoals "rij naar de keuken".
+
+**Architectuur laag:** Laag 1 (Navigatie) - zie [4-layer-perception-architecture.md](4-layer-perception-architecture.md)
+**Fase:** 4 (Autonomie)
+**Afhankelijk van:** Fase 3 (Pi Integratie met Camera Module 3)
 
 ---
 
-## Motivation
+## Motivatie
 
-**Current state:** Robot can avoid obstacles reactively but has no spatial memory or understanding of its environment.
+**Huidige situatie:** Robot kan obstakels reactief ontwijken maar heeft geen ruimtelijk geheugen.
 
-**Desired state:** Robot builds a mental model of its surroundings, recognizes rooms, and can navigate to named locations on command.
+**Gewenste situatie:** Robot bouwt een mental model van zijn omgeving, herkent kamers, en kan naar benoemde locaties navigeren.
 
-**Why auto-discovery over pre-mapping:**
-- More impressive/engaging user experience
-- Adapts when furniture moves
-- Aligns with the "intelligent companion" vision
-- Leverages existing LLM + YOLO capabilities
+**Waarom auto-discovery in plaats van pre-mapping:**
+- Indrukwekkender/engagerender voor gebruiker
+- Past zich aan wanneer meubels verplaatsen
+- Sluit aan bij de "intelligent companion" visie
+- Benut bestaande LLM + YOLO capabilities
+
+---
+
+## Hoe Past Dit in de Architectuur?
+
+### Laag 1: Navigatie (Pi Lokaal)
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                        ROOM DISCOVERY FLOW                           │
+│                                                                      │
+│  Camera Module 3                                                     │
+│        │                                                             │
+│        ▼                                                             │
+│  ┌───────────┐     ┌───────────┐     ┌───────────┐                 │
+│  │ SLAM      │────►│ Frontier  │────►│ Navigate  │                 │
+│  │ Mapping   │     │ Detection │     │ to Edge   │                 │
+│  └───────────┘     └───────────┘     └───────────┘                 │
+│        │                                    │                        │
+│        │                                    │                        │
+│        ▼                                    ▼                        │
+│  ┌───────────┐                       ┌───────────┐                  │
+│  │ Occupancy │                       │ Object    │◄── YOLO (Laag 0) │
+│  │ Grid      │                       │ Detection │◄── VLM (Laag 2)  │
+│  └───────────┘                       └───────────┘                  │
+│        │                                    │                        │
+│        └──────────────┬────────────────────┘                        │
+│                       ▼                                              │
+│                ┌─────────────┐                                       │
+│                │ Semantic    │                                       │
+│                │ Room Labels │                                       │
+│                │ (waypoints) │                                       │
+│                └─────────────┘                                       │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Samenwerking met Andere Lagen
+
+| Component | Laag | Rol |
+|-----------|------|-----|
+| SLAM/Mapping | 1 (lokaal) | Bouwt occupancy grid, tracked positie |
+| Safety check | 0 (lokaal) | Voorkomt botsingen tijdens exploratie |
+| Object detection | 0/2 | YOLO (lokaal) voor snelle detectie, VLM (remote) voor context |
+| Room labeling | 2 (remote) | LLM bepaalt kamer type op basis van objecten |
 
 ---
 
 ## Core Capabilities
 
 ### 1. Visual SLAM Mapping
-- Build occupancy grid using monocular camera
-- Track robot position within the map
-- Detect when returning to visited areas (loop closure)
+- Bouw occupancy grid met monoculaire camera
+- Track robot positie binnen de kaart
+- Detecteer wanneer je terugkeert bij bezochte gebieden (loop closure)
 
 ### 2. Frontier-Based Exploration
-- Identify unexplored edges of the map ("frontiers")
-- Autonomously navigate to frontiers
-- Continue until environment is fully mapped
+- Identificeer onverkende randen van de kaart ("frontiers")
+- Navigeer autonoom naar frontiers
+- Ga door tot omgeving volledig in kaart is gebracht
 
 ### 3. Semantic Room Labeling
-- Use YOLO to detect room-identifying objects (fridge → kitchen, bed → bedroom)
-- Use LLM vision for contextual room identification
-- Store named waypoints with map coordinates
+- Gebruik YOLO (Laag 0) voor snelle object detectie (koelkast, bed, bank)
+- Gebruik LLM/VLM (Laag 2) voor contextuel kamer identificatie
+- Sla benoemde waypoints op met kaart coordinaten
 
 ### 4. Natural Language Navigation
-- New LLM tool: `navigate_to(location: string)`
-- Lookup location in semantic map
-- Path planning with obstacle avoidance
+- Nieuwe LLM tool: `navigate_to(location: string)`
+- Lookup locatie in semantic map
+- Path planning met obstacle avoidance (Laag 0)
 
 ---
 
 ## User Interactions
 
 ```
-User: "Explore the house"
-Robot: Begins autonomous exploration, announces discoveries
-       "I found what looks like a kitchen"
-       "There's a bedroom down this hallway"
-       "Exploration complete. I mapped 4 rooms."
+User: "Verken het huis"
+Robot: Begint autonome exploratie, kondigt ontdekkingen aan
+       "Ik heb gevonden wat lijkt op een keuken"
+       "Er is een slaapkamer aan het einde van de gang"
+       "Exploratie klaar. Ik heb 4 kamers in kaart gebracht."
 
-User: "Drive to the kitchen"
-Robot: Navigates to saved kitchen waypoint
+User: "Rij naar de keuken"
+Robot: Navigeert naar opgeslagen keuken waypoint
 
-User: "Where are you?"
-Robot: "I'm in the living room, near the couch"
+User: "Waar ben je?"
+Robot: "Ik sta in de woonkamer, bij de bank"
 
-User: "What rooms do you know?"
-Robot: "Kitchen, living room, bedroom, and bathroom"
+User: "Welke kamers ken je?"
+Robot: "Keuken, woonkamer, slaapkamer, en badkamer"
 ```
 
 ---
 
-## Hardware Considerations
+## Hardware
 
-**Minimum (existing hardware):**
-- OV5647 camera - functional but limited FOV
+Zie [HARDWARE-REFERENCE.md](../hardware/HARDWARE-REFERENCE.md) voor de definitieve hardware configuratie.
 
-**Recommended upgrade (~$10):**
-- Wide-angle lens adapter (120°+ FOV)
-- Improves SLAM feature tracking significantly
+**Relevante componenten voor deze feature:**
 
-**Optional upgrade (~$25):**
-- IMX219 wide-angle camera
-- Better low-light performance
+| Component | Rol | Status |
+|-----------|-----|--------|
+| Camera Module 3 (IMX708) | Visual SLAM input, object detectie | Te bestellen |
+| ToF sensors (VL53L0X) | Zijwaartse afstandsmeting voor betere mapping | Besteld |
+| Ultrasonic (HC-SR04) | Front obstacle detection + schaal calibratie | Geinstalleerd |
 
 ---
 
 ## Dependencies
 
-- Monocular VSLAM library (ORB-SLAM3, RTAB-Map, or Stella-VSLAM)
-- Path planning algorithm (A*, RRT, or Nav2)
-- Ultrasonic sensor for scale calibration
-- Existing YOLO + LLM infrastructure
+- Monoculaire VSLAM library (ORB-SLAM3, RTAB-Map, of Stella-VSLAM)
+- Path planning algoritme (A*, RRT, of Nav2)
+- YOLO voor object detectie (al gepland voor Laag 0)
+- LLM infrastructure (al geimplementeerd in Fase 1)
 
 ---
 
-## Suggested Phase
+## Implementatie Roadmap
 
-**Phase 4 or 5** - After core Pi integration (Phase 3) is complete.
-
-This feature builds on:
-- Working motor control ✓
-- Camera integration ✓
-- LLM function calling ✓
-- YOLO object detection ✓
+| Fase | Component | Status |
+|------|-----------|--------|
+| 3 | Camera Module 3 installeren | Gepland |
+| 3 | YOLO nano safety layer | Gepland |
+| 3 | (Optioneel) SLAM basis testen | Gepland |
+| 4 | SLAM compleet integreren | Gepland |
+| 4 | Frontier exploration | Gepland |
+| 4 | Semantic room labeling | Gepland |
+| 4 | navigate_to LLM tool | Gepland |
 
 ---
 
 ## Success Criteria
 
-1. Robot can explore a multi-room environment autonomously
-2. Correctly identifies and labels at least 3 room types
-3. Successfully navigates to named rooms on voice command
-4. Re-localizes after being moved/turned off
-5. Updates map when environment changes
+1. Robot kan multi-room omgeving zelfstandig verkennen
+2. Identificeert en labelt correct minstens 3 kamer types
+3. Navigeert succesvol naar benoemde kamers op voice command
+4. Re-localiseert na verplaatst/uitgezet te zijn
+5. Update kaart wanneer omgeving verandert
 
 ---
 
 ## Open Questions
 
-- Store maps persistently or rebuild on startup?
-- How to handle multi-floor environments?
-- Should robot announce discoveries or stay quiet during exploration?
-- Integration with future smart home features?
+- Kaarten persistent opslaan of herbouwen bij startup?
+- Hoe om te gaan met meerdere verdiepingen?
+- Moet robot ontdekkingen aankondigen of stil blijven tijdens exploratie?
+- Integratie met toekomstige smart home features?
 
 ---
 
-## Related Ideas
+## Gerelateerde Ideeën (Future)
 
-- **Patrol mode**: Periodic autonomous rounds for security
-- **Object memory**: "Where did I last see my keys?"
-- **Person following**: Track and follow a specific person
-- **Return to charger**: Navigate to charging station when low battery
+- **Patrol mode:** Periodieke autonome rondes voor beveiliging
+- **Object memory:** "Waar heb ik mijn sleutels laatst gezien?"
+- **Person following:** Volg een specifieke persoon
+- **Return to charger:** Navigeer naar oplaadstation bij lage batterij
+
+---
+
+## Gerelateerde Documenten
+
+- [4-layer-perception-architecture.md](4-layer-perception-architecture.md) - Architectuur waar deze feature in past
+- [HARDWARE-REFERENCE.md](../hardware/HARDWARE-REFERENCE.md) - Definitieve hardware
+- [fase4-autonomie/PLAN.md](../../fase4-autonomie/PLAN.md) - Fase waar dit wordt geimplementeerd
+- [DECISIONS.md](../../DECISIONS.md) - D010 (Camera), D011 (4-laags architectuur)

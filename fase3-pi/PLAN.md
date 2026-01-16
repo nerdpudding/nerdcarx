@@ -4,6 +4,9 @@
 **Doel:** Echte hardware, services gesplitst tussen Pi en Desktop
 **Afhankelijk van:** Fase 1 (Desktop Compleet) en Fase 2 (Refactor)
 
+> **Nieuwe plannen:** Camera Module 3 upgrade en 4-laags perceptie architectuur.
+> Zie [D010](../DECISIONS.md), [D011](../DECISIONS.md), en [4-Laags Perceptie Architectuur](../docs/feature-proposals/4-layer-perception-architecture.md).
+
 ## Overzicht
 
 In deze fase verbinden we de Raspberry Pi 5 met de PiCar-X hardware aan de desktop server. De Pi wordt de "client" die:
@@ -44,6 +47,7 @@ In deze fase verbinden we de Raspberry Pi 5 met de PiCar-X hardware aan de deskt
 - [x] USB microfoon aansluiten (AI test nog niet gedaan)
 - [ ] OLED display aansluiten en testen
 - [x] Camera module installeren (exposure tuning nodig)
+- [ ] **Camera Module 3 installeren** (zodra besteld/ontvangen)
 
 ### Pi Client Applicatie
 - [ ] Project structuur opzetten (`pi-client/`)
@@ -78,6 +82,47 @@ In deze fase verbinden we de Raspberry Pi 5 met de PiCar-X hardware aan de deskt
 - [ ] Orchestrator: WebSocket server toevoegen
 - [ ] Protocol definiëren (JSON messages)
 - [ ] TTS audio versturen naar Pi (of URL naar audio file)
+
+### I2C Hardware Commissioning ([D012](../DECISIONS.md))
+
+**Wanneer hardware binnen is:**
+- [ ] I2C bus scan (`i2cdetect -y 1`) - verwacht 0x3C (OLED), 0x70 (hub)
+- [ ] OLED aansluiten en testen met luma.oled
+- [ ] TCA9548A hub aansluiten
+- [ ] ToF sensoren via hub kanalen testen
+- [ ] LEDs aansluiten op D0/D1 en testen
+
+**ToF Sensor Integratie:**
+- [ ] VL53L0X library installeren
+- [ ] read_tof_left() / read_tof_right() functies
+- [ ] Integratie met safety layer
+
+**LED Indicators:**
+- [ ] Obstacle warning (LEDs aan bij korte afstand)
+- [ ] Status indicators (boot, error, etc.)
+
+Zie: [Hardware Reference](../docs/hardware/HARDWARE-REFERENCE.md)
+
+### Vision & Perceptie (4-Laags Architectuur - [D011](../DECISIONS.md))
+
+**Laag 0: Safety (verplicht)**
+- [ ] YOLO nano/small installeren op Pi
+- [ ] Safety layer: obstacle detection → motor stop
+- [ ] ToF sensoren integreren voor zijwaartse detectie
+- [ ] Testen: robot stopt voor obstakels zonder WiFi
+
+**Video Streaming naar Desktop**
+- [ ] Streaming setup kiezen (WebRTC of MediaMTX)
+- [ ] Latency meten (~200ms target)
+- [ ] Desktop ontvanger voor video stream
+
+**Laag 1: SLAM/Navigatie (optioneel, afhankelijk van timing)**
+> Start wanneer Camera Module 3 binnen is. Kan ook naar Fase 4 schuiven.
+- [ ] SLAM bibliotheek kiezen (ORB-SLAM3 / RTAB-Map / Stella-VSLAM)
+- [ ] Basis mapping testen
+- [ ] Localisatie testen
+
+Zie ook: [4-Laags Perceptie Architectuur](../docs/feature-proposals/4-layer-perception-architecture.md)
 
 ## Architectuur
 
@@ -171,14 +216,38 @@ pi-client/
 
 ## Hardware Checklist
 
+### Compute & Controller
 - [x] Raspberry Pi 5 (16GB RAM)
-- [x] PiCar-X kit v2.0/v4 (geassembleerd)
-- [x] USB microfoon (omnidirectioneel)
-- [ ] OLED 0.96" I2C (128x64) - aanwezig, nog niet aangesloten
-- [x] Camera module (OV5647)
+- [x] RobotHAT v4 (geïnstalleerd)
+- [x] Active cooler voor Pi 5
 - [x] SD card (128GB)
 - [x] Netwerk: Pi en Desktop op zelfde LAN
-- [x] Active cooler voor Pi 5
+
+### PiCar-X Kit (geïnstalleerd)
+- [x] DC motors (2x)
+- [x] Servo's (steering P2, pan P0, tilt P1)
+- [x] Ultrasonic HC-SR04 (D2/D3)
+- [x] Grayscale module (A0-A2)
+
+### Camera
+- [x] Camera OV5647 - werkend, wordt vervangen
+- [ ] **Camera Module 3 (IMX708)** - te bestellen ([D010](../DECISIONS.md))
+
+### I2C Devices ([D012](../DECISIONS.md))
+- [ ] **OLED WPI438 (SSD1306)** - aanwezig, nog niet aangesloten
+- [ ] **TCA9548A I2C Hub** - besteld
+- [ ] **2x VL53L0X ToF sensoren** - besteld
+- [ ] Grove kabels - besteld
+
+### Indicators
+- [ ] **2x Grove LED (wit)** - besteld (voor D0/D1)
+- [ ] Grove→Dupont adapters - besteld
+
+### Audio
+- [x] I2S speaker (mono) - werkend
+- [x] USB microfoon - aanwezig, nog niet getest met AI
+
+> **Hardware reference:** [docs/hardware/HARDWARE-REFERENCE.md](../docs/hardware/HARDWARE-REFERENCE.md)
 
 ## Voortgang
 
