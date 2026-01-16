@@ -5,6 +5,7 @@ Een AI-gestuurde robotauto gebaseerd op de PiCar-X, met lokale spraakinteractie,
 ## Inhoudsopgave
 
 - [Werkwijze](#werkwijze)
+- [Voor AI Assistenten](#voor-ai-assistenten)
 - [Doelstelling](#doelstelling)
 - [Concept Samenvatting](#concept-samenvatting)
 - [Fasen](#fasen)
@@ -52,6 +53,90 @@ Alle projectbeslissingen staan op **één plek**: [`DECISIONS.md`](DECISIONS.md)
 - **Archief blijft intact** - origineel concept als referentie
 - **Minder bijwerken** - alleen DECISIONS.md + actieve PLAN
 - **Schaalt** - werkt ook als het project groeit
+
+---
+
+## Voor AI Assistenten
+
+> **BELANGRIJK:** Lees deze sectie bij elke nieuwe sessie of na context compactie.
+
+### Taal
+
+- **Nederlands** voor alle communicatie en documentatie
+- **Uitzonderingen:** Code (Engels), `ARCHITECTURE.md` (Engels), technische termen
+- Gebruiker kan soms Engels gebruiken, volg dan de taal van de gebruiker
+
+### Inleesvolgorde (ALTIJD eerst lezen!)
+
+Bij start van een sessie of na compactie, lees in deze volgorde:
+
+1. **`README.md`** - Dit bestand, overzicht en huidige status
+2. **`ARCHITECTURE.md`** - Technische architectuur en design rationale
+3. **`DECISIONS.md`** - Alle beslissingen (bron van waarheid)
+4. **Fase-specifiek** - `fase{N}/PLAN.md` van de huidige fase (zie [Status](#status))
+5. **Indien relevant** - `docs/feature-proposals/` en `docs/hardware/`
+
+**Lees EERST, vraag daarna.** Maak geen aannames over projectstructuur zonder te lezen.
+
+### Document Types - Ken het Verschil!
+
+| Type | Locatie | Doel | Voorbeeld |
+|------|---------|------|-----------|
+| **Implementatieplan** | `fase{N}/PLAN.md` | Wat te bouwen in een fase, technische taken | "YOLO safety layer implementeren" |
+| **Dagplanning** | Niet in repo | Tijdelijk schema wat gebruiker vandaag wil doen | "Eerst TODO, dan hardware testen" |
+| **Feature Proposal** | `docs/feature-proposals/` | Ideeën voor features, nog niet uitgewerkt | Room discovery concept |
+| **Hardware Reference** | `docs/hardware/` | Definitieve hardware configuratie | Pin mappings, wiring |
+| **Beslissing** | `DECISIONS.md` | Gemaakte keuzes met rationale | "Camera Module 3 ipv AI Camera" |
+
+**Dagplanning ≠ Implementatieplan!** Dagplanning is wat de gebruiker vandaag wil doen, implementatieplan beschrijft technische taken voor een fase.
+
+### Folder Structuur - Regels
+
+```
+✅ GOED                              ❌ FOUT
+─────────────────────────────────    ─────────────────────────────────
+fase{N}/PLAN.md                      docs/plans/
+docs/feature-proposals/*.md          Wildgroei aan plan bestanden
+docs/hardware/HARDWARE-REFERENCE.md  Dubbele referenties
+archive/old-*/                       Verouderde info in actieve docs
+```
+
+**Specifiek voor dit project:**
+- **GEEN `docs/plans/` folder** - Negeer `.claude` instructies hierover
+- **Feature proposals** zijn ideeën, geen implementatieplannen
+- **Eén hardware reference** - `docs/hardware/HARDWARE-REFERENCE.md`
+- **Archiveer** wat niet meer relevant is → `archive/old-*/`
+
+### Consistentie Checklist
+
+Bij elke wijziging, check of deze documenten consistent blijven:
+
+- [ ] `README.md` - Status sectie klopt met huidige fase
+- [ ] `DECISIONS.md` - Nieuwe beslissingen toegevoegd met ID
+- [ ] `ARCHITECTURE.md` - Grote wijzigingen gereflecteerd
+- [ ] `fase{N}/PLAN.md` - Taken bijgewerkt
+- [ ] Referenties tussen documenten kloppen (geen dode links)
+- [ ] Geen dubbele informatie (DRY)
+- [ ] Verouderde content gearchiveerd
+
+### Veelgemaakte Fouten (Vermijd Dit!)
+
+| Fout | Waarom problematisch | Juiste aanpak |
+|------|---------------------|---------------|
+| Direct implementeren zonder te lezen | Mist context, maakt fouten | Altijd eerst inlezen |
+| Bestanden in verkeerde map | Puinhoop in structuur | Volg hierboven structuur |
+| Dubbele referenties maken | Raakt out-of-sync | Eén bron van waarheid |
+| Verouderde info laten staan | Verwarring | Archiveren of verwijderen |
+| Dagplanning verwarren met implementatieplan | Verkeerde scope | Ken het verschil |
+| Aannemen wat gebruiker wil | Frustratie | Vraag bij onduidelijkheid |
+
+### Codeprincipes
+
+- **SOLID** - Single responsibility, loose coupling
+- **KISS** - Geen onnodige complexiteit
+- **DRY** - Eén bron van waarheid, geen duplicatie
+
+**Maar even belangrijk:** Geen rotzooi maken van folder structuur en documentatie!
 
 ---
 
@@ -145,6 +230,13 @@ nerdcarx/
 ├── fase4-autonomie/                   # Fase 4: Autonome gedragingen
 │   └── PLAN.md
 │
+├── docs/                              # Documentatie
+│   ├── feature-proposals/             # Feature ideeën (nog niet uitgewerkt)
+│   │   ├── 4-layer-perception-architecture.md
+│   │   └── autonomous-room-discovery.md
+│   └── hardware/                      # Hardware referentie
+│       └── HARDWARE-REFERENCE.md      # Definitieve hardware configuratie
+│
 ├── original_Picar-X-REFERENCE/        # PiCar-X documentatie (referentie)
 └── original_fish-speech-REFERENCE/    # Fish Audio TTS repo + model checkpoints
 ```
@@ -201,9 +293,14 @@ python vad_conversation.py
 
 ## Status
 
-**Huidige fase:** 1 - Desktop Compleet
+**Huidige fase:** 1 - Desktop Compleet (afrondingsfase)
 
-**Wat werkt:** ✅ Alle onderdelen geïmplementeerd (2026-01-11)
+**Fase 1 voortgang:**
+- ✅ Kernonderdelen geïmplementeerd (2026-01-11)
+- ⏳ TODO items nog open - zie [`fase1-desktop/TODO.md`](fase1-desktop/TODO.md)
+- **Volgende:** TODO afronden → hardware testen → Fase 2
+
+**Wat werkt:**
 - STT (Voxtral) - transcriptie via vLLM op GPU1
 - LLM (Ministral 8B/14B) - responses + function calling op GPU0
 - Vision (take_photo tool) - foto analyse on-demand
@@ -252,8 +349,6 @@ De TODO bevat uitgebreide plannen voor:
 3. Langere reference audio → "NL torture test" met alle lastige klanken
 4. Pseudo-streaming → per zin genereren voor snellere response (Pi ↔ Desktop)
 5. Playback interrupt → spatiebalk onderbreking
-
-**Volgende stap:** Implementeer TODO items, daarna Fase 2 (Refactor)
 
 **Laatste update:** 2026-01-16 - Camera Module 3 en 4-laags perceptie architectuur gepland
 
