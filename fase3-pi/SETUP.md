@@ -247,20 +247,63 @@ Je zou moeten zien:
 
 ---
 
-## 10. Folder Structuur op Pi
+## 10. Pi Conversation Script
+
+### 10.1 Extra dependency
+
+```bash
+conda activate nerdcarx
+pip install websockets
+```
+
+### 10.2 Run conversation
+
+**Voorwaarden:**
+- Desktop orchestrator draait (ws://192.168.1.161:8200)
+- Mic en speaker werken (zie sectie 1)
+
+```bash
+conda activate nerdcarx
+python ~/fase3-pi/test_scripts/pi_conversation.py
+```
+
+**Flow:**
+1. Zeg "hey jarvis"
+2. Wacht op "Speech detected!"
+3. Spreek je vraag
+4. Stilte van 1.5s beëindigt opname
+5. Audio wordt naar desktop gestuurd
+6. Response speelt af via speaker
+
+### 10.3 Configuratie aanpassen
+
+Edit `test_scripts/pi_conversation.py`:
+```python
+DESKTOP_IP = "192.168.1.161"  # Desktop IP
+WAKE_THRESHOLD = 0.5          # Wake word gevoeligheid
+VAD_THRESHOLD = 0.5           # Speech detectie gevoeligheid
+SILENCE_DURATION = 1.5        # Stilte voor einde opname
+AUDIO_GAIN = 10.0             # +20dB gain voor USB mic
+```
+
+---
+
+## 11. Folder Structuur op Pi
 
 ```
 ~/fase3-pi/
 ├── test_scripts/
 │   ├── test_wakeword.py    # OpenWakeWord test (hey_jarvis)
-│   └── test_vad.py         # Silero VAD test (ONNX)
+│   ├── test_vad.py         # Silero VAD test (ONNX)
+│   └── pi_conversation.py  # Volledige flow: wake → VAD → WS → speaker
+├── requirements.txt         # Python dependencies
 ├── PLAN.md                  # Implementatie plan
 └── SETUP.md                 # Deze file
 ```
 
 ---
 
-## 11. Sync vanaf Desktop
+## 12. Sync vanaf Desktop
 
 ```bash
 rsync -avz /home/rvanpolen/vibe_claude_kilo_cli_exp/nerdcarx/fase3-pi/ rvanpolen@192.168.1.71:~/fase3-pi/

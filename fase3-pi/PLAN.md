@@ -11,9 +11,9 @@ Fase 3 is opgesplitst in subfases met duidelijke prioriteiten:
 
 | Subfase | Focus | Prioriteit | Status |
 |---------|-------|------------|--------|
-| **3a** | Core audio flow (wake word → VAD → WebSocket → response) | **VANDAAG** | 🔄 WIP (wake+VAD done) |
-| **3b** | OLED emotie display | Later vandaag/morgen | TODO |
-| **3c** | Hardware uitbreiding (ToF, LEDs, Camera 3) | Toekomst | Gepland |
+| **3a** | Core audio flow (wake word → VAD → WebSocket → response) | - | ✅ DONE (2026-01-17) |
+| **3b** | OLED emotie display | Morgen | TODO |
+| **3c** | Hardware uitbreiding (ToF, LEDs, Camera 3) | Morgen+ | 🔄 Camera 3 eerst |
 
 ---
 
@@ -335,11 +335,13 @@ python main.py
 
 - [x] Wake word detectie werkt op Pi ✅ (2026-01-16)
 - [x] VAD neemt spraak correct op ✅ (2026-01-16)
-- [ ] Audio wordt naar desktop gestuurd via WebSocket
-- [ ] Desktop verwerkt (STT → LLM → TTS)
-- [ ] TTS audio komt terug naar Pi
-- [ ] Audio speelt af via Pi speaker
-- [ ] End-to-end latency < 5s (acceptabel)
+- [x] Audio wordt naar desktop gestuurd via WebSocket ✅ (2026-01-17)
+- [x] Desktop verwerkt (STT → LLM → TTS) ✅ (2026-01-17)
+- [x] TTS audio komt terug naar Pi ✅ (2026-01-17)
+- [x] Audio speelt af via Pi speaker ✅ (2026-01-17)
+- [x] End-to-end latency < 5s (acceptabel) ✅ (2026-01-17)
+
+**Subfase 3a: ✅ COMPLEET** (2026-01-17)
 
 ---
 
@@ -437,17 +439,19 @@ python main.py
 
 ## Volgende Stap
 
-Wat nu werkt:
+### ✅ Subfase 3a COMPLEET (2026-01-17)
 - ✅ Hardware: mic (card 2), speaker (card 3 + GPIO 20)
 - ✅ Wake word: OpenWakeWord v0.4.0 met hey_jarvis
 - ✅ VAD: Silero VAD v4 via ONNX Runtime
+- ✅ WebSocket: audio_process → response + audio_chunks
+- ✅ pi_conversation.py: volledige flow werkend (6 turns getest)
 
-Nog te doen voor complete Subfase 3a:
-1. **Combineer** wake word + VAD in main.py (detect → record → send)
-2. **WebSocket client** naar desktop orchestrator (ws://192.168.1.x:8200/ws)
-3. **Audio playback** voor TTS responses via speaker
-4. **+20dB gain** in Python capture code (nu alleen via sox)
-5. **End-to-end test** van volledige flow
+### Volgende prioriteiten (Jan 17+)
+1. **pi_conversation.py uitbreiden** - Meer debug info (timing, emotion display, zoals desktop versie)
+2. **Camera Module 3** installeren en testen (hardware binnen)
+3. **take_photo functie ECHT implementeren** - Foto maken → LLM vision → beschrijving
+4. **OLED emotie display** (Subfase 3b) - show_emotion function calls afhandelen
+5. **Experimental script uitbreiden** - Webpagina control, wakeword toggle, handmatige foto
 
 ---
 
@@ -503,6 +507,8 @@ Nog te doen voor complete Subfase 3a:
 | 2026-01-16 | **OpenWakeWord v0.4.0** werkend - `test_scripts/test_wakeword.py` (scores 0.85-1.00) |
 | 2026-01-16 | **Silero VAD v4 ONNX** werkend - `test_scripts/test_vad.py` (h/c state, 480 chunk) |
 | 2026-01-16 | SETUP.md aangemaakt met complete installatie instructies en troubleshooting |
+| 2026-01-17 | **pi_conversation.py** werkend - volledige flow: wake → VAD → WebSocket → TTS playback |
+| 2026-01-17 | End-to-end test succesvol: 6 turns, function calls (emotion, take_photo) ontvangen |
 
 ---
 

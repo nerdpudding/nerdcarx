@@ -1,0 +1,15 @@
+# Fase 3 Pi Client Dependencies
+# Getest op Pi 5 met Python 3.13, Miniforge conda
+
+# Wake word
+openwakeword==0.4.0  # v0.6.0 faalt door tflite-runtime
+
+# Audio
+pyaudio
+numpy
+
+# VAD (Silero via ONNX, geen PyTorch!)
+onnxruntime  # Automatisch geinstalleerd via openwakeword
+
+# WebSocket client
+websockets>=12.0

@@ -179,8 +179,8 @@ Een interactieve AI-gestuurde robotauto bouwen die:
 |------|------|--------------|--------|
 | 0 | [Concept](archive/0.concept/) | Ontwerp en voorbereiding | Gearchiveerd |
 | 1 | [Desktop Compleet](fase1-desktop/) | STT + LLM + Vision + Tools + TTS | ✅ Afgerond |
-| 2 | [Refactor + Docker](fase2-refactor/) | Modulaire orchestrator, Docker Compose, WebSocket | **Actief** |
-| 3 | [Pi Integratie](fase3-pi/) | Hardware, Camera Module 3, YOLO safety, opt. SLAM | Gepland |
+| 2 | [Refactor + Docker](fase2-refactor/) | Modulaire orchestrator, Docker Compose, WebSocket | ✅ Afgerond |
+| 3 | [Pi Integratie](fase3-pi/) | Hardware, Camera Module 3, OLED emotie, Vision | **Actief** |
 | 4 | [Autonomie](fase4-autonomie/) | Idle behaviors, SLAM, pose detectie | Gepland |
 
 > **Nieuw:** [4-Laags Perceptie Architectuur](docs/feature-proposals/4-layer-perception-architecture.md) gepland voor Fase 3+.
@@ -330,16 +330,23 @@ python vad_conversation.py
 
 ## Status
 
-**Huidige fase:** 2 - Refactor + Docker
+**Huidige fase:** 3 - Pi Integratie
 
-**Fase 2 - Refactor + Docker:** 🔄 IN PROGRESS
-- ✅ Modulaire orchestrator met Protocol-based services
-- ✅ Docker Compose stack (4 services: Ollama, Voxtral, TTS, Orchestrator)
-- ✅ Alle services healthy met health checks
-- ✅ /chat endpoint (text → LLM → response)
-- ✅ /audio-conversation endpoint (audio → STT → LLM → TTS → audio)
-- ✅ WebSocket protocol gedefinieerd
-- ⏳ WebSocket testen (zonder Pi)
+**Fase 3 - Pi Integratie:** 🔄 IN PROGRESS
+- ✅ **Subfase 3a COMPLEET** - Core audio flow werkend (2026-01-17)
+  - OpenWakeWord v0.4.0 (hey_jarvis) + Silero VAD v4 ONNX
+  - WebSocket communicatie Pi ↔ Desktop orchestrator
+  - TTS audio playback op I2S speaker
+  - End-to-end test succesvol: 6 turns met function calls
+- ⏳ Camera Module 3 (verwacht 17 jan)
+- ⏳ take_photo functie echt implementeren
+- ⏳ OLED emotie display (Subfase 3b)
+- Zie [`fase3-pi/PLAN.md`](fase3-pi/PLAN.md) voor details
+
+**Fase 2 - Refactor + Docker:** ✅ AFGEROND (2026-01-17)
+- Modulaire orchestrator met Protocol-based services
+- Docker Compose stack (4 services: Ollama, Voxtral, TTS, Orchestrator)
+- WebSocket endpoint werkend en getest met Pi client
 - Zie [`fase2-refactor/PLAN.md`](fase2-refactor/PLAN.md) voor details
 
 **Fase 1 - Desktop Compleet:** ✅ AFGEROND (2026-01-16)
@@ -359,16 +366,16 @@ python vad_conversation.py
 - VAD - hands-free gesprekken met gedetailleerde timing output
 - Centrale config (config.yml)
 
-**Hardware status:** ✅ PiCar-X geassembleerd (2026-01-14)
+**Hardware status:** ✅ Pi Audio Pipeline werkend (2026-01-17)
 - Raspberry Pi 5 (16GB) met Pi OS Lite (Trixie, 64-bit)
 - Active cooler geïnstalleerd
 - Robot HAT v4 gemonteerd en werkend
 - SunFounder libraries geïnstalleerd (robot-hat, vilib, picar-x)
 - Motoren en servo's getest en werkend
-- I2S speaker werkend (mono)
-- Camera OV5647 werkend (exposure tuning nodig)
-- USB microfoon aanwezig (nog niet getest met AI)
-- AI integratie: klaar voor Fase 2/3
+- I2S speaker werkend (mono, GPIO 20 voor amplifier)
+- Camera OV5647 werkend (wordt vervangen door Camera Module 3)
+- **USB microfoon werkend met AI** (card 2, +20dB gain via software)
+- **Audio pipeline Pi ↔ Desktop getest en werkend**
 
 **Bestelde/geplande hardware:** ([D010](DECISIONS.md), [D012](DECISIONS.md))
 - **Camera Module 3 (IMX708)**: te bestellen - autofocus, HDR
@@ -393,7 +400,7 @@ python vad_conversation.py
 - Perceived latency: ~1.1s (streaming) vs ~3.6s (batch)
 - Vision latency: ~5-10s (dubbele LLM call)
 
-**Laatste update:** 2026-01-16 - Fase 2 Docker stack werkend
+**Laatste update:** 2026-01-17 - Fase 3 Pi audio pipeline werkend
 
 > **Meer weten?**
 > - [`ARCHITECTURE.md`](ARCHITECTURE.md) - Uitgebreide architectuur documentatie met diagrammen

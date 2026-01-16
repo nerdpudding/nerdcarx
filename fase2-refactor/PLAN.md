@@ -1,7 +1,8 @@
 # Fase 2: Refactor + Docker + Pi Communicatie
 
-**Status:** WERKEND (2026-01-16) - Stack draait, STT/LLM/TTS pipeline getest
+**Status:** ✅ AFGEROND (2026-01-17) - Stack draait, WebSocket getest met Pi client
 **Vorige fase:** Fase 1 Desktop - AFGEROND
+**Volgende fase:** Fase 3 Pi Integratie - ACTIEF
 
 ---
 

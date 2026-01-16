@@ -1,7 +1,7 @@
 # NerdCarX - Architecture Overview
 
-> **Last updated:** 2026-01-16
-> **Current Phase:** 2 (Refactor + Docker) - Phase 1 AFGEROND
+> **Last updated:** 2026-01-17
+> **Current Phase:** 3 (Pi Integration) - Phase 1 & 2 COMPLETED
 
 ---
 
@@ -549,19 +549,20 @@ User: "Je bent geweldig!" → LLM calls show_emotion("happy") → state changes 
 | Vraagintonatie niet altijd goed | Model limitatie |
 | Kleine pauzes tussen zinnen | Trade-off voor snelheid |
 
-### Hardware Status (Phase 2/3 Prep)
+### Hardware Status (Phase 3 Active)
 
 | Component | Status | Notes |
 |-----------|--------|-------|
 | Raspberry Pi 5 | Ready | 16GB RAM, Pi OS Lite (Trixie 64-bit), active cooler |
 | PiCar-X Kit | Assembled | v2.0/v4, all motors and servos tested |
 | Robot HAT | Working | I2S speaker functional (mono) |
-| Camera | Working | OV5647, exposure tuning needed (dark image) |
-| USB Microphone | Connected | Not yet tested with AI pipeline |
+| Camera | Working | OV5647, to be replaced by Camera Module 3 |
+| USB Microphone | **Working with AI** | Card 2, +20dB software gain, tested with wake word + VAD |
+| I2S Speaker | **Working with AI** | Card 3, GPIO 20 for amplifier enable |
 | OLED Display | Pending | Available, not yet connected |
 | SunFounder Libraries | Installed | robot-hat, vilib, picar-x |
 
-> Hardware assembly completed 2026-01-14. Desktop pipeline ready, klaar voor Fase 2/3.
+> **Phase 3 in progress (2026-01-17):** Pi ↔ Desktop audio pipeline working. Wake word, VAD, WebSocket, TTS playback all functional.
 
 ---
 
@@ -575,12 +576,12 @@ flowchart LR
     p4[Phase 4<br/>Autonomy]
 
     p1 -->|"✅ done"| p2
-    p2 -->|"current"| p3
-    p3 --> p4
+    p2 -->|"✅ done"| p3
+    p3 -->|"current"| p4
 
     style p1 fill:#c8e6c9,stroke:#2e7d32
-    style p2 fill:#fff3e0,stroke:#ff9800
-    style p3 fill:#fff3e0
+    style p2 fill:#c8e6c9,stroke:#2e7d32
+    style p3 fill:#fff3e0,stroke:#ff9800
     style p4 fill:#fff3e0
 ```
 
@@ -589,7 +590,7 @@ All AI components working end-to-end on desktop. Hands-free Dutch conversations 
 
 **Details:** [fase1-desktop/README.md](fase1-desktop/README.md)
 
-### Phase 2: Refactor + Docker (Current - Geïmplementeerd)
+### Phase 2: Refactor + Docker (AFGEROND - 2026-01-17)
 Modulaire orchestrator met Protocol-based services, WebSocket support, Docker Compose stack.
 
 **Key changes:**
@@ -600,8 +601,14 @@ Modulaire orchestrator met Protocol-based services, WebSocket support, Docker Co
 
 **Details:** [fase2-refactor/README.md](fase2-refactor/README.md)
 
-### Phase 3: Pi 5 Integration
-Connect real hardware - PiCar-X robot, motors, wake word detection, and OLED display for showing the robot's emotional state (driven by the Emotion State Machine). Desktop remains the AI brain, Pi handles physical interaction.
+### Phase 3: Pi 5 Integration (Current - In Progress)
+Connect real hardware - PiCar-X robot, wake word detection, audio pipeline, and OLED display.
+
+**Progress (2026-01-17):**
+- ✅ **Subfase 3a COMPLEET**: Wake word (OpenWakeWord) + VAD (Silero ONNX) + WebSocket + TTS playback
+- ⏳ Camera Module 3 integration (hardware expected Jan 17)
+- ⏳ Real take_photo implementation for LLM vision
+- ⏳ OLED emotion display
 
 **Details:** [fase3-pi/PLAN.md](fase3-pi/PLAN.md)
 
