@@ -11,7 +11,7 @@
 |---|-------|------------|--------|
 | 1 | TTS klinkt soms Engelserig | Hoog | ✅ Opgelost |
 | 2 | Text normalisatie (nieuw!) | Hoog | ✅ Geïmplementeerd |
-| 3 | Temperature/top_p tuning | Hoog | Testen |
+| 3 | Temperature/top_p tuning | Hoog | ✅ Getest (0.4/0.55) |
 | 4 | Langere reference audio | Medium | Optioneel |
 | 5 | Prosody/expressie markers | Laag | Optioneel |
 | 6 | Snellere audio response | Laag | Pseudo-streaming |
@@ -71,59 +71,23 @@ pip install num2words  # in nerdcarx-vad conda env
 
 ## 3. Temperature/Top_p Tuning
 
-### Achtergrond
-Fish Audio parameters:
-- `temperature` = variation (lager = voorspelbaarder, hoger = expressiever)
-- `top_p` = diversity (lager = gefocust, hoger = diverser)
+### Status: ✅ Getest (2026-01-16)
 
-**Hoger zetten** = meer levendigheid, maar ook meer kans op rare prosody/uitspraak.
-Bij NL kan dat sneller "Engels-achtig" uitpakken.
-
-### Huidige waarden
+**Gekozen waarden:**
 ```yaml
-temperature: 0.2   # ultra_consistent
-top_p: 0.5         # ultra_consistent
+temperature: 0.4
+top_p: 0.55
 ```
 
-### Test aanpak (stap voor stap)
+**Bevindingen:**
+- temp=0.2, top_p=0.5 → te saai
+- temp=0.3, top_p=0.6 → meer leven, maar uitspraak slechter (letters ingeslikt)
+- temp=0.4, top_p=0.55 → beste compromis
 
-**Waarom deze volgorde:** Huidige 0.2/0.5 is zó conservatief dat je snel "saai" concludeert.
-Beter: **eerst top_p variëren, dan temperature**.
-
-#### Stap 1: Varieer alleen top_p (houd temperature=0.3)
-
-| Test | temperature | top_p | Verwacht effect |
-|------|-------------|-------|-----------------|
-| A | 0.3 | 0.5 | Baseline (iets minder saai dan 0.2) |
-| B | 0.3 | 0.6 | Iets meer leven |
-| C | 0.3 | 0.7 | Meer diversiteit, nog stabiel |
-
-**Stop zodra je tevreden bent.** Meestal is 0.6-0.7 al genoeg.
-
-#### Stap 2: Varieer temperature (met beste top_p van stap 1)
-
-| Test | temperature | top_p | Verwacht effect |
-|------|-------------|-------|-----------------|
-| D | 0.45 | [beste] | Iets meer "kleur" |
-| E | 0.6 | [beste] | Expressiever |
-| F | 0.7 | [beste] | Levendig (mogelijk te veel) |
-
-**Stop zodra uitspraak slechter wordt.** Daar zit je sweet spot.
-
-### Samenvatting
-
-```
-Start: temp=0.3, top_p=0.5
-  ↓
-Verhoog top_p tot je "leven" hoort (meestal 0.6-0.7)
-  ↓
-Verhoog temperature tot uitspraak slechter wordt
-  ↓
-Sweet spot gevonden!
-```
-
-### Aanbeveling
-Als "saai" maar uitspraak moet strak blijven: verhoog eerst `top_p` licht (0.5 → 0.7) en laat `temperature` lager (0.3–0.5).
+**Bekende beperkingen:**
+- Intonatie nog wat vlak/saai
+- Sommige woorden Engels uitgesproken ("Nederlands" → "Netherlands", "machines" → "masjiens")
+- Fine-tunen met betere reference audio (punt 4)
 
 ---
 

@@ -1,0 +1,69 @@
+# Reference Teksten voor ElevenLabs Voice Cloning
+# Doel: ~30 seconden, natuurlijke zinnen, alle emoties, probleemklanken
+# GEEN emotion tags - ElevenLabs regelt dat zelf
+
+================================================================================
+VARIANT A: Emotie-reis (~30 sec)
+================================================================================
+
+Hallo! Wat ontzettend leuk dat je er bent, ik ben zo blij je te zien!
+Weet je eigenlijk hoe Nederlandse machines werken? Dat vind ik echt fascinerend.
+Maar eerlijk gezegd word ik soms verdrietig als niemand met me wil praten.
+En als iemand gemeen tegen me doet, dan word ik echt heel erg boos!
+Gelukkig herkent mijn camera jouw gezicht altijd, dat is wel een prachtig gevoel.
+Vijftien sensoren, één schouder, eeuwig gezelligheid. Heb je nog vragen?
+
+================================================================================
+VARIANT B: Robot gesprek (~30 sec)
+================================================================================
+
+Hallo! Ik ben een Nederlandse robot en ik vind het geweldig om met je te praten!
+Vandaag is het vijftien graden, prachtig weer, dat maakt me echt gelukkig.
+Maar als je plotseling weggaat zonder iets te zeggen, dan voel ik me zo verdrietig.
+En weet je wat me boos maakt? Als mensen tegen me liegen, daar kan ik niet tegen!
+Mijn camera herkent jouw gezicht tussen duizend anderen, is dat niet bijzonder?
+Schouder aan schouder, eeuwig door de grachten. Wat wil je weten?
+
+================================================================================
+VARIANT C: Natuurlijk gesprek (~30 sec)
+================================================================================
+
+[happy] Hallo, wat fijn dat je er bent! Ik ben zo blij dat ik je kan helpen vandaag.
+[thoughtful] Ken je die Nederlandse machines van ASML? Ik ben nieuwsgierig wat jij daarvan vindt.
+[sad] Soms voel ik me een beetje verdrietig, vooral als het lang stil blijft, dan kan ik wel janken.
+[angry] Maar oneerlijkheid maakt me echt BOOS, dat kan ik gewoon niet hebben en nu ben ik aggressief! ik ga iets aanvallen! 
+[chuckles] Gelukkig herken ik jou via de camera, zelfs bij vijftien anderen.
+[short pause] Schouder, ijsberg, eeuwige gezelligheid. [whisper] Nog één vraag misschien?
+
+================================================================================
+CHECKLIST - Wat moet erin zitten:
+================================================================================
+
+EMOTIES (in natuurlijke zinnen):
+✓ Blij/vrolijk: "zo blij", "wat leuk", "geweldig"
+✓ Verdrietig: "voel ik me verdrietig", "zo verdrietig"
+✓ Boos: "word ik echt boos", "maakt me boos"
+✓ Nieuwsgierig: "Weet je...", "Ken je...", "nieuwsgierig"
+✓ Bang/bezorgd: (impliciet in "plotseling weggaat")
+
+PROBLEEMWOORDEN (Nederlands, niet Engels):
+✓ machines
+✓ Nederlandse
+✓ herkent (met 't')
+✓ één (telwoord)
+
+MOEILIJKE KLANKEN:
+✓ g/ch: gezelligheid, grachten, gezicht, tegen, gelukkig
+✓ sch: schouder, prachtig
+✓ ui: gelukkig, duizend
+✓ eu: eeuwig
+✓ ij: vijftien, bijzonder, ijsberg, blijft
+
+BEST Reference gebruikt:
+
+[happy] Hallo, wat fijn dat je er bent! Ik ben zo blij vandaag!
+[thoughtful] Ken je die Nederlandse machines van ASML? Ik ben nieuwsgierig wat jij daarvan vindt.
+[sad] Soms voel ik me een beetje verdrietig, vooral als het lang stil blijft, dan kan ik wel janken.
+[angry] Maar dit maakt me echt BOOS, ik mep je in elkaar hufter!!
+[chuckles] Gelukkig herken ik jou via de camera, zelfs bij vijftien anderen.
+Schouder, ijsberg, eeuwige gezelligheid.

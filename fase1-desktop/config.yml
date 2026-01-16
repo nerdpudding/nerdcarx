@@ -148,22 +148,34 @@ tts:
   # ID van geüploade reference in Fish Audio server
   reference_id: "dutch2"  # ElevenLabs NL vrouwenstem (bestanden in tts/fishaudio/elevenreference/)
 
-  # === PARAMETER CONFIGURATIES ===
-  # Getest zijn de volgende opties - pas aan naar voorkeur:
+  # === PARAMETER UITLEG ===
   #
-  # ultra_consistent (ACTIEF) - Beste Nederlandse uitspraak, zeer consistent
-  #   temperature: 0.2
-  #   top_p: 0.5
+  # TEMPERATURE (0.0 - 1.0):
+  #   - Bepaalt "kleur" en expressiviteit van de stem
+  #   - Lager (0.2-0.3): Monotoon, voorspelbaar, maar stabiele uitspraak
+  #   - Hoger (0.5-0.7): Meer intonatie variatie, expressiever, maar risico op rare klanken
+  #   - Effect: Verandert HOE woorden klinken (toonhoogte, nadruk)
   #
-  # very_consistent - Iets natuurlijker, kleine variatie toegestaan
-  #   temperature: 0.3
-  #   top_p: 0.6
+  # TOP_P (0.0 - 1.0):
+  #   - Bepaalt diversiteit in woordkeuze/uitspraak varianten
+  #   - Lager (0.4-0.5): Gefocust, consistent, maar kan "saai" klinken
+  #   - Hoger (0.6-0.8): Meer variatie, natuurlijker, maar risico op foute uitspraak
+  #   - Effect: Verandert WELKE uitspraakvarianten gekozen worden
   #
-  # Lagere temperature/top_p = consistenter maar minder natuurlijk
-  # Hogere temperature/top_p = meer variatie maar risico op accent drift
+  # HOE TE TUNEN (volgorde belangrijk!):
+  #   1. Begin met lage waarden (temp=0.3, top_p=0.5)
+  #   2. Verhoog EERST top_p in stappen van 0.05 tot je "leven" hoort
+  #   3. Stop als uitspraak slechter wordt (letters ingeslikt, Engels accent)
+  #   4. Verhoog DAN temperature in stappen van 0.1 voor meer expressie
+  #   5. Stop als het te wild/onvoorspelbaar wordt
   #
-  temperature: 0.2  # ultra_consistent (0.2) of very_consistent (0.3)
-  top_p: 0.5        # ultra_consistent (0.5) of very_consistent (0.6)
+  # GETESTE CONFIGURATIES (2026-01-16):
+  #   temp=0.2, top_p=0.5  → te saai, monotoon
+  #   temp=0.3, top_p=0.6  → meer leven, maar uitspraak slechter
+  #   temp=0.4, top_p=0.55 → beste compromis (huidige keuze)
+  #
+  temperature: 0.4  # Expressiviteit - verhoog voor meer intonatie
+  top_p: 0.55       # Diversiteit - verhoog voorzichtig voor meer variatie
 
   # Output format
   format: "wav"
