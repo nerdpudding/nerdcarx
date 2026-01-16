@@ -29,47 +29,67 @@ User kan via Pi mic praten met robot en krijgt response via Pi speaker:
 
 ### Wake Word Keuze
 
-**Eisen:**
-- 100% lokaal (geen cloud)
-- Geen accounts/gedoe (liefst)
-- ~3 wake words voldoende ("hey nerd" + eventueel stop)
-- Moet goed werken op Pi 5
+**Keuze: OpenWakeWord** met `hey_jarvis` model (2026-01-16)
 
-**Opties geanalyseerd:**
+**Stijl:** Always-listening wake-word (robot reageert op "hey jarvis" ook met TV/fans aan)
 
-| Optie | Accounts nodig? | Lokaal? | Custom words | CPU Pi 5 | Kwaliteit |
-|-------|----------------|---------|--------------|----------|-----------|
-| **OpenWakeWord** | Nee | 100% | Ja (pre-trained modellen) | Laag (~2%) | Goed |
-| **Porcupine Free** | Ja (eenmalig) | Ja na export | 3 gratis | Zeer laag | Uitstekend |
-| Vosk | Nee | 100% | Beperkt | Medium | Matig |
+**Waarom OpenWakeWord:**
+- ✅ 100% open source, geen accounts nodig
+- ✅ Pre-trained modellen beschikbaar
+- ✅ Laag CPU gebruik (~2-5%)
+- ✅ Ingebouwde Speex noise suppression
+- ✅ GitHub: https://github.com/dscripka/openWakeWord
+- ✅ Reference clone: `original_openWakeWord-REFERENCE/`
 
-**Keuze: NOG NIET BESLOTEN**
+**Configuratie:**
+```python
+from openwakeword.model import Model
 
-User doet nog eigen research naar OpenWakeWord vs Porcupine. Beide zijn viable:
+model = Model(
+    wakeword_models=["hey_jarvis"],
+    enable_speex_noise_suppression=True  # ruisonderdrukking voor TV/fans
+)
 
-**OpenWakeWord:**
-- ✅ Geen accounts nodig - volledig open source
-- ✅ Pre-trained modellen ("hey jarvis", "alexa", etc.)
-- ⚠️ Custom wake word training = extra werk
-- ✅ Laag CPU gebruik
+# Per audio frame (16-bit 16kHz PCM)
+prediction = model.predict(audio_frame)
+if prediction["hey_jarvis"] > 0.5:
+    print("Wake word detected!")
+```
 
-**Porcupine Free:**
-- ⚠️ Eenmalig Picovoice Console account nodig
-- ✅ 3 custom wake words gratis
-- ✅ Daarna 100% offline
-- ✅ Zeer nauwkeurig
-
-**Besluit later** - eerst hardware verificatie (mic/speaker)
+**Later (toekomstige fase):**
+- Custom "hey nerd" model trainen via [Google Colab](https://colab.research.google.com/drive/1q1oe2zOyZp7UsB3jJiQ1IFn8z5YfjwEb)
+- Community modellen: https://github.com/fwartner/home-assistant-wakewords-collection
 
 ### VAD Keuze
 
-**Keuze: Silero VAD** (bewezen in fase1-desktop)
+**Keuze: Silero VAD via ONNX Runtime** (2026-01-16)
 
-Rationale:
-- Werkt uitstekend in fase1
-- Lokaal, geen netwerk nodig
-- Licht genoeg voor Pi 5
-- Python, dezelfde code herbruikbaar
+**Waarom Silero VAD:**
+- ML-based, zeer accuraat voor speech vs noise
+- Pi 5 CPU (Cortex-A76 @ 2.4GHz) is snel genoeg
+- Bewezen in fase1-desktop
+
+**BELANGRIJK: Gebruik ONNX Runtime, NIET PyTorch**
+- PyTorch op ARM Pi = dependency hell
+- ONNX Runtime is lichter en werkt smooth op ARM
+
+**Fallback:** `speech_recognition` met `adjust_for_ambient_noise()` als Silero niet werkt
+- Energy-threshold based (minder robuust)
+- Simpeler, minder dependencies
+
+### Audio Pipeline Samenvatting
+
+```
+[Mic plughw:2,0] → [+20dB gain in Python]
+       ↓
+[OpenWakeWord + Speex] → "hey jarvis" detected?
+       ↓ ja
+[Silero VAD (ONNX)] → spraak opnemen tot stilte
+       ↓
+[WebSocket] → [Desktop Orchestrator: STT→LLM→TTS]
+       ↓
+[Speaker plughw:3,0 + GPIO20]
+```
 
 ### Implementatie Stappen
 
@@ -85,29 +105,47 @@ ssh rvanpolen@192.168.1.71  # of nerdcarx.local
 ```bash
 # Check welke audio devices er zijn
 arecord -l
+# Output: card 2: Device [USB PnP Sound Device]
 
-# Test opname (5 seconden)
-arecord -D plughw:1,0 -f S16_LE -r 16000 -c 1 -d 5 test.wav
+# Mic volume op 100%
+alsamixer -c 2  # F4 voor Capture, pijltjes omhoog, Esc
 
-# Als device nummer anders is, pas aan (bijv. plughw:2,0)
+# Test opname (5 seconden) - card 2!
+arecord -D plughw:2,0 -f S16_LE -r 16000 -c 1 -d 5 test.wav
 ```
 
 **Speaker testen:**
 ```bash
 # Check speaker devices
 aplay -l
+# Output: card 3: sndrpihifiberry [snd_rpi_hifiberry_dac]
 
-# Test playback
-aplay test.wav
+# BELANGRIJK: Activeer amplifier via GPIO 20!
+pinctrl set 20 op dh
+
+# Test playback op card 3
+aplay -D plughw:3,0 test.wav
 
 # Of met speaker-test
-speaker-test -t wav -c 1
+speaker-test -D plughw:3,0 -t wav -c 1
 ```
 
-**Troubleshooting:**
-- Als mic niet werkt: check `alsamixer` voor input levels
-- Als speaker niet werkt: check I2S configuratie in `/boot/firmware/config.txt`
-- USB mic heeft vaak device ID 1 of 2
+**Software gain (NODIG voor huidige USB mic):**
+```bash
+# Optie 1: Via sox (command line)
+sudo apt install sox
+sox input.wav output.wav gain 20
+
+# Optie 2: In Python (audio/capture.py) - TODO bij implementatie
+# audio_data = audio_data * gain_factor
+```
+
+**Bevindingen 2026-01-16:**
+- USB mic (card 2) werkt maar is zacht op >50cm afstand
+- I2S speaker (card 3) werkt, vereist GPIO 20 activatie
+- Software gain (~20dB via sox) is nodig voor bruikbare audio
+- **TODO:** Overweeg betere far-field USB mic voor productie (bijv. ReSpeaker USB Mic Array)
+- **TODO:** Mogelijk betere USB speaker, maar huidige is acceptabel
 
 #### Stap 1: Pi Client Project Setup
 ```
@@ -126,22 +164,64 @@ fase3-pi/
 │       └── websocket_client.py  # WebSocket naar desktop
 ```
 
-#### Stap 2: Dependencies Installeren op Pi
+#### Stap 2: Dependencies & Environment Management
+
+**BELANGRIJK: Geen dependency hell!**
+
+De standaard SunFounder scripts installeren alles direct op het systeem via `pip install` zonder venv. Dit willen we NIET.
+
+**Aanpak:**
+1. **Conda op Pi** (Miniforge) voor geïsoleerde environments
+2. **Één environment** voor fase3 met de juiste Python versie
+3. **requirements.txt** voor reproduceerbare installs
+4. Later eventueel **Docker** als we meerdere services nodig hebben
+
+**Setup Conda (eenmalig):**
 ```bash
-# SSH naar Pi
-ssh pi@<pi-ip>
+# Miniforge installeren (ARM64 compatible)
+wget https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-aarch64.sh
+bash Miniforge3-Linux-aarch64.sh
+# Herstart shell of source ~/.bashrc
 
-# Python venv (geen conda op Pi)
-python3 -m venv ~/nerdcarx-env
-source ~/nerdcarx-env/bin/activate
-
-# Dependencies
-pip install openwake-word  # Wake word
-pip install silero-vad     # VAD (of torch + model)
-pip install websockets     # WebSocket client
-pip install pyaudio        # Audio capture
-pip install numpy          # Audio processing
+# Environment aanmaken
+conda create -n nerdcarx python=3.11 -y
+conda activate nerdcarx
 ```
+
+**Dependencies installeren:**
+```bash
+conda activate nerdcarx
+
+# System dependencies (via apt, eenmalig)
+sudo apt install -y portaudio19-dev libsndfile1
+
+# Python dependencies via pip in conda env
+pip install -r requirements.txt
+```
+
+**requirements.txt:**
+```
+# Wake word (keuze nog open)
+# openwakeword of pvporcupine
+
+# Audio
+pyaudio
+numpy
+soundfile
+
+# VAD
+silero-vad  # of torch + model direct
+
+# Network
+websockets
+aiohttp
+
+# Hardware (SunFounder libs - alleen wat we echt nodig hebben)
+smbus2  # I2C communicatie
+```
+
+**Waarom GEEN breakout/robot-hat direct?**
+De SunFounder `robot-hat` en `picar-x` libs doen veel automatische dingen (i2samp.sh, etc.) die we niet willen. We gebruiken alleen de low-level libs die we echt nodig hebben en schrijven onze eigen wrappers.
 
 #### Stap 3: Wake Word Detector
 ```python
@@ -399,6 +479,8 @@ Na goedkeuring van dit plan:
 | 2026-01-14 | Motoren, servo's en I2S speaker getest - werkend |
 | 2026-01-14 | Camera werkend maar exposure tuning nodig (donker beeld) |
 | 2026-01-16 | Fase 3 plan gedetailleerd met subfases 3a/3b/3c |
+| 2026-01-16 | Audio hardware getest: mic=card2, speaker=card3, GPIO20 nodig, +20dB gain via sox |
+| 2026-01-16 | Wake word: OpenWakeWord (hey_jarvis), VAD: Silero via ONNX (niet PyTorch) |
 
 ---
 
