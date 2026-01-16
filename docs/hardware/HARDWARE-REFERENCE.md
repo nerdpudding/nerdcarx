@@ -1,6 +1,6 @@
 # NerdCarX Hardware Reference
 
-> **Last updated:** 2026-01-16
+> **Last updated:** 2026-01-17
 > **Hardware revision:** RobotHAT v4 + Pi 5
 
 Dit document bevat de volledige hardware configuratie voor NerdCarX, inclusief pin mappings, I2C bus configuratie, en wiring instructies.
@@ -62,6 +62,39 @@ Dit document bevat de volledige hardware configuratie voor NerdCarX, inclusief p
 | TCA9548A I2C Hub | 0x70 | **Besteld** |
 | VL53L0X ToF (via hub) | 0x29 | **Besteld** |
 | SSD1306 OLED | 0x3C | Aanwezig |
+
+### Audio Hardware
+
+| Component | Interface | Device | Status |
+|-----------|-----------|--------|--------|
+| USB Microfoon | USB Audio | Card 2, `plughw:2,0` | ✅ Werkend |
+| I2S Speaker (mono) | I2S via RobotHAT | Card 3, `plughw:3,0` | ✅ Werkend |
+| Amplifier Enable | GPIO | GPIO 20 | ✅ Werkend |
+
+**Audio Configuratie Details:**
+
+| Aspect | Waarde | Opmerking |
+|--------|--------|-----------|
+| Mic sample rate | 16kHz mono | Standaard voor STT |
+| Mic gain | +20dB (software) | Via `sox` of Python (`audio * gain_factor`) |
+| Speaker sample rate | 22.05kHz/44.1kHz | TTS output format |
+| Amplifier enable | `pinctrl set 20 op dh` | Moet actief zijn voor speaker output |
+
+**Test commando's:**
+```bash
+# Mic test (5 sec opname)
+arecord -D plughw:2,0 -f S16_LE -r 16000 -c 1 -d 5 test.wav
+
+# Speaker test (activeer eerst amplifier!)
+pinctrl set 20 op dh
+aplay -D plughw:3,0 test.wav
+
+# Mic volume op 100%
+alsamixer -c 2  # F4 voor Capture, pijltjes omhoog
+
+# Software gain toevoegen
+sox input.wav output.wav gain 20
+```
 
 ---
 

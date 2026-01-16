@@ -1,6 +1,6 @@
 # Dagplanning 16 januari 2026
 
-**Status:** ✅ Fase 1 AFGEROND | 🔄 Fase 2 IN PROGRESS
+**Status:** ✅ Fase 1 AFGEROND | ✅ Fase 2 AFGEROND | 🔄 Fase 3 IN PROGRESS
 
 ---
 
@@ -10,8 +10,8 @@
 |---|------|------------|--------|
 | 1 | TODO Fase 1 afmaken | Hoog | ✅ AFGEROND |
 | 2 | Fase 2 Docker Stack opzetten | Hoog | ✅ AFGEROND |
-| 3 | WebSocket testen (zonder Pi) | Medium | ⏳ TODO |
-| 4 | VAD op Pi + pipeline test script | Medium | Gepland voor Fase 3 |
+| 3 | WebSocket testen (zonder Pi) | Medium | ✅ AFGEROND (Fase 3) |
+| 4 | VAD op Pi + pipeline test script | Medium | ✅ AFGEROND (Fase 3) |
 | 5 | OLED aansluiten + emotion features | Medium | Gepland voor Fase 3 |
 
 ---
@@ -68,26 +68,21 @@ Zie: [`fase2-refactor/PLAN.md`](fase2-refactor/PLAN.md)
 
 ---
 
-## 3. WebSocket Testen → TODO
+## 3. WebSocket Testen → ✅ AFGEROND (Fase 3)
 
-**Doel:**
-- WebSocket endpoint testen zonder Pi (met wscat of Python script)
-- AUDIO_PROCESS message flow valideren
+**Geïmplementeerd in Fase 3:**
+- ✅ WebSocket endpoint getest met Pi client
+- ✅ AUDIO_PROCESS message flow gevalideerd
+- ✅ End-to-end test succesvol (6 turns)
 
 ---
 
-## 4. VAD op Pi + Pipeline Test Script → Gepland Fase 3
+## 4. VAD op Pi + Pipeline Test Script → ✅ AFGEROND (Fase 3)
 
-**Huidige situatie Pi:**
-- PiCar-X gebouwd en basis getest
-- Standaard hardware config
-- Nog GEEN: OLED scherm, Camera Module 3, ToF sensors, extra LEDs
-- WEL aanwezig: mic (USB), speaker (I2S)
-
-**Doel (Fase 2):**
-1. VAD werkend krijgen op de Pi
-2. Script maken om LLM pipeline te testen
-3. Test: praten via car mic → desktop processing → antwoord via car speaker
+**Geïmplementeerd in Fase 3:**
+- ✅ Silero VAD v4 ONNX werkend op Pi
+- ✅ `pi_conversation.py` test script gemaakt
+- ✅ Volledige flow getest: mic → wake word → VAD → WebSocket → TTS → speaker
 
 ---
 
@@ -126,7 +121,7 @@ Zie: [`fase2-refactor/PLAN.md`](fase2-refactor/PLAN.md)
 **Aanwezig, nog niet aangesloten:**
 - OLED WPI438 (SSD1306)
 
-**Besteld/te bestellen:**
+**Besteld (verwacht 17 jan 2026):**
 - Camera Module 3 (IMX708)
 - TCA9548A I2C Hub
 - 2x VL53L0X ToF sensoren

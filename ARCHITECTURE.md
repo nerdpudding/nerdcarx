@@ -1,7 +1,7 @@
 # NerdCarX - Architecture Overview
 
 > **Last updated:** 2026-01-17
-> **Current Phase:** 3 (Pi Integration) - Phase 1 & 2 COMPLETED
+> **Current Phase:** 3 (Pi Integration) - Phase 1, 2 & 3a COMPLETED
 
 ---
 
@@ -80,7 +80,7 @@ The AI models are too demanding for a Raspberry Pi 5, even with 16GB RAM:
 | **Ministral 14B** | Native function calling support, vision capability, reasonable size for 24GB GPU. Official Mistral parameters (temp=0.15) reduce hallucinations. | Tested 8B variant - 14B Q8 noticeably better quality |
 | **Fish Audio S1-mini** | #1 on TTS-Arena2 benchmark, ~1.2s latency (vs 5-20s for Chatterbox). Dutch via voice cloning with reference audio. | Tested Chatterbox (too slow), Piper (less expressive), VibeVoice (Belgian accent and very unreliable low quality results) |
 | **YOLO Nano/Small** | Runs on Pi 5's GPU, real-time object detection, well-documented, many pre-trained variants | Full YOLO too heavy for Pi |
-| **Porcupine** (Wake word) | Accurate, low CPU, custom wake words, works offline, has hobby license | Snowboy (discontinued), Mycroft Precise (less accurate) |
+| **OpenWakeWord** | Open source, accurate, low CPU (~2-5%), pre-trained models, ONNX runtime | Porcupine (account required), Snowboy (discontinued), Mycroft Precise (less accurate) |
 | **Silero VAD** | Local, no network, reliable voice activity detection, works with Python | WebRTC VAD (less accurate), cloud VAD (defeats local-first) |
 
 > For complete decision history with dates and alternatives: [DECISIONS.md](DECISIONS.md)
@@ -208,7 +208,7 @@ C4Context
     UpdateLayoutConfig($c4ShapeInRow="2", $c4BoundaryInRow="1")
 ```
 
-> **Current state (Phase 1):** No hardware yet. User interacts via desktop microphone/speaker. All components run on desktop for development and testing.
+> **Current state (Phase 3a complete):** Pi audio pipeline working. Wake word detection, VAD, and audio capture on Pi. STT/LLM/TTS on desktop via WebSocket.
 
 **Why split between Pi and Desktop?**
 
@@ -269,7 +269,7 @@ Hardware arrives. VAD, wake word, and object detection move to Pi. Heavy AI stay
 ```mermaid
 flowchart TB
     subgraph pi["Raspberry Pi 5"]
-        wake[Wake Word<br/>Porcupine]
+        wake[Wake Word<br/>OpenWakeWord]
         vad_pi[VAD + Audio Capture<br/>USB Mic + Silero]
         yolo[Object Detection<br/>YOLO Nano/Small]
         cam[Camera<br/>OV5647]
@@ -505,7 +505,7 @@ User: "Je bent geweldig!" → LLM calls show_emotion("happy") → state changes 
 | **LLM** | Ministral 14B Q8 + Ollama | Function calling, vision, low temperature for consistency |
 | **TTS** | Fish Audio S1-mini | #1 TTS benchmark, 4x faster than alternatives, voice cloning |
 | **Orchestrator** | FastAPI | Simple, fast, full control, no framework overhead |
-| **Wake Word** | Picovoice Porcupine | Accurate, low CPU, custom wake words |
+| **Wake Word** | OpenWakeWord v0.4.0 | Open source, low CPU, `hey_jarvis` model (custom training planned later) |
 | **VAD** | Silero VAD | Local, no network, reliable |
 | **Containerization** | Docker | Reproducible, isolated, easy deployment |
 
@@ -704,7 +704,7 @@ The architecture is designed (Phase 2 refactor) to easily swap between local and
 |----------|----------|
 | Main README | [README.md](README.md) |
 | All decisions with rationale | [DECISIONS.md](DECISIONS.md) |
-| **Phase 2 (current)** | [fase2-refactor/README.md](fase2-refactor/README.md) |
+| **Phase 3 (current)** | [fase3-pi/PLAN.md](fase3-pi/PLAN.md) |
 | Phase 2 config | [fase2-refactor/config.yml](fase2-refactor/config.yml) |
 | Phase 1 (legacy) | [fase1-desktop/README.md](fase1-desktop/README.md) |
 | Original concept | [archive/0.concept/](archive/0.concept/) |

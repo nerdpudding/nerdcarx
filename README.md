@@ -377,11 +377,14 @@ python vad_conversation.py
 - **USB microfoon werkend met AI** (card 2, +20dB gain via software)
 - **Audio pipeline Pi ↔ Desktop getest en werkend**
 
-**Bestelde/geplande hardware:** ([D010](DECISIONS.md), [D012](DECISIONS.md))
-- **Camera Module 3 (IMX708)**: te bestellen - autofocus, HDR
+**Bestelde hardware (verwacht 17 jan):** ([D010](DECISIONS.md), [D012](DECISIONS.md))
+- **Camera Module 3 (IMX708)**: besteld - autofocus, HDR
 - **TCA9548A I2C Hub**: besteld - voor meerdere I2C devices
 - **2x VL53L0X ToF sensoren**: besteld - zijwaartse afstandsmeting
 - **2x Grove LED (wit)**: besteld - indicator/waarschuwingslichten
+- **Grove kabels**: besteld
+
+**Aanwezig (nog niet aangesloten):**
 - **OLED WPI438 (SSD1306)**: aanwezig - emotie display
 
 > **Hardware reference:** [`docs/hardware/HARDWARE-REFERENCE.md`](docs/hardware/HARDWARE-REFERENCE.md)

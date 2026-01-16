@@ -4,22 +4,36 @@
 
 ---
 
-## Prioriteiten
+## Aanpak: Mock eerst, dan Echt
 
-### 1. pi_conversation.py uitbreiden
-**Doel:** Meer debug info zoals de desktop versie
+De implementatie volgt twee stappen:
+
+1. **Mock tests** - Valideer de function call flow met dummy data
+2. **Echte implementatie** - Na hardware installatie, volledig werkend maken
+
+---
+
+## Fase A: Mock Tests (zonder nieuwe hardware)
+
+### A1. pi_conversation.py uitbreiden
+**Doel:** Debug info + mock function call handling
 
 - [ ] Timing info per stap (STT, LLM, TTS)
-- [ ] Emotion display in output
-- [ ] Mock foto test (function call afhandelen)
+- [ ] Emotion display in console output
+- [ ] **Mock foto test**: detecteer `take_photo` call, return "Mock: geen camera" of placeholder
+- [ ] **Mock emotie test**: detecteer `show_emotion` call, print naar console
 - [ ] Betere error handling
 - [ ] Turn summary aan einde
 
 **Files:** `test_scripts/pi_conversation.py`
 
+**Resultaat:** Function call infrastructure gevalideerd zonder nieuwe hardware.
+
 ---
 
-### 2. Camera Module 3 installeren
+## Fase B: Hardware Installatie (als pakket binnen is)
+
+### B1. Camera Module 3 installeren
 **Doel:** Nieuwe camera (IMX708) werkend krijgen
 
 - [ ] Hardware verwisselen (OV5647 → Camera Module 3)
@@ -27,76 +41,72 @@
 - [ ] `rpicam-hello` testen
 - [ ] Experimental scripts runnen voor basis camera test
 
-**Files:** `experimental/` scripts
-
 **Verwachte issues:**
 - Autofocus configuratie
 - Exposure/white balance tuning
 - libcamera vs legacy camera stack
 
+### B2. OLED aansluiten
+**Doel:** Display hardware werkend
+
+- [ ] OLED aansluiten op I2C bus
+- [ ] `i2cdetect` check (0x3C)
+- [ ] `luma.oled` library installeren
+- [ ] Simpele test: text op scherm
+
+**Hardware:** OLED WPI438 (SSD1306, 128x64, I2C @ 0x3C)
+
 ---
 
-### 3. take_photo functie ECHT implementeren
+## Fase C: Echte Implementatie (na hardware setup)
+
+### C1. take_photo functie ECHT implementeren
 **Doel:** "Wat zie je?" vraag → foto → LLM vision → beschrijving
 
-Stappen:
 - [ ] Function call `take_photo` detecteren in response
 - [ ] Foto maken met camera (libcamera/picamera2)
-- [ ] Foto naar desktop sturen (base64 of file upload)
+- [ ] Foto naar desktop sturen (base64 via WebSocket)
 - [ ] LLM vision call met foto
 - [ ] Beschrijving terugsturen naar Pi
 
 **Waar aan te passen:**
 - `pi_conversation.py` - function call handling
 - Orchestrator - foto ontvangen en verwerken
-- Config - camera settings
 
-**Architectuur vraag:**
-- Optie A: Pi maakt foto, stuurt naar desktop via WebSocket
-- Optie B: Desktop vraagt foto aan Pi, Pi stuurt terug
+### C2. OLED emotie display ECHT implementeren
+**Doel:** show_emotion function calls → display
 
----
-
-### 4. OLED emotie display (Subfase 3b)
-**Doel:** show_emotion function calls afhandelen
-
-- [ ] OLED aansluiten op I2C bus
-- [ ] `luma.oled` library installeren
 - [ ] Simpele emotie icons maken (of text-based eerst)
 - [ ] Function call `show_emotion` detecteren
 - [ ] Emotie tonen op display
 
 **Provisorisch:** Zonder 3D-printed houder, gewoon werkend krijgen
 
-**Hardware:** OLED WPI438 (SSD1306, 128x64, I2C @ 0x3C)
-
 ---
 
-### 5. Experimental script uitbreiden
-**Doel:** Webpagina voor handmatige control
+## Optioneel: Experimental script uitbreiden
+**Doel:** Webpagina voor handmatige control (als er tijd over is)
 
-Features:
 - [ ] Rondrijden via webpagina (pijltjes of WASD)
 - [ ] Wake word aan/uit toggle
 - [ ] Handmatig foto maken en opslaan
 - [ ] Status display (mic level, wake word status)
-- [ ] Mogelijk: live camera preview
 
 **Files:** `experimental/` folder
 
 ---
 
-## Volgorde
+## Volgorde Samenvatting
 
-| # | Taak | Geschatte inspanning |
-|---|------|---------------------|
-| 1 | pi_conversation.py debug info | Klein |
-| 2 | Camera Module 3 installeren + test | Medium |
-| 3 | take_photo implementeren | Groot |
-| 4 | OLED emotie display | Medium |
-| 5 | Experimental script uitbreiden | Medium-Groot |
+| Fase | Taak | Afhankelijkheid |
+|------|------|-----------------|
+| A1 | Mock tests in pi_conversation.py | Geen (nu te doen) |
+| B1 | Camera Module 3 installeren | Hardware binnen |
+| B2 | OLED aansluiten | Hardware binnen |
+| C1 | take_photo ECHT | B1 afgerond |
+| C2 | OLED emotie ECHT | B2 afgerond |
 
-**Realistische verwachting:** Punten 1-3 en mogelijk 4. Punt 5 als er tijd over is.
+**Realistische verwachting:** Fase A vandaag, Fase B zodra hardware binnen is, Fase C daarna.
 
 ---
 

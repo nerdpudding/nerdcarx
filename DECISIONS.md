@@ -557,6 +557,89 @@ orchestrator/app/
 
 ---
 
+### D014: Wake Word - OpenWakeWord v0.4.0
+
+**Datum:** 2026-01-16
+**Fase:** 3
+**Status:** ✅ Geïmplementeerd
+
+**Besluit:**
+OpenWakeWord v0.4.0 met `hey_jarvis` pre-trained model voor wake word detectie op Pi.
+
+| Aspect | Keuze |
+|--------|-------|
+| Library | OpenWakeWord v0.4.0 |
+| Model | `hey_jarvis` (pre-trained) |
+| Runtime | ONNX (niet TFLite) |
+| Threshold | 0.5 |
+| CPU usage | ~2-5% |
+
+**KRITIEK:** Gebruik versie **0.4.0**, NIET 0.6.0!
+- v0.6.0 faalt: `tflite-runtime` heeft geen wheel voor Python 3.13 ARM64
+- v0.4.0 werkt: gebruikt ONNX Runtime
+
+**Rationale:**
+1. 100% open source, geen account nodig (vs Porcupine)
+2. Pre-trained models beschikbaar
+3. Laag CPU gebruik (~2-5%)
+4. Ingebouwde Speex noise suppression
+5. Werkt met ONNX Runtime op ARM64 Pi
+
+**Alternatieven overwogen:**
+| Optie | Reden afgewezen |
+|-------|-----------------|
+| Picovoice Porcupine | Account vereist, niet 100% open source |
+| Snowboy | Discontinued |
+| Mycroft Precise | Minder accuraat |
+
+**Toekomst (low priority):**
+- Custom "hey nerd" model trainen via Google Colab
+- Community modellen: https://github.com/fwartner/home-assistant-wakewords-collection
+
+**Test resultaten:** Scores 0.85-1.00 bij duidelijke "hey jarvis"
+
+**Referentie:** [fase3-pi/PLAN.md](fase3-pi/PLAN.md)
+
+---
+
+### D015: Pi VAD - Silero VAD v4 via ONNX Runtime
+
+**Datum:** 2026-01-16
+**Fase:** 3
+**Status:** ✅ Geïmplementeerd
+
+**Besluit:**
+Silero VAD v4 via ONNX Runtime voor Voice Activity Detection op Pi.
+
+| Aspect | Keuze |
+|--------|-------|
+| Model | Silero VAD v4 |
+| Runtime | ONNX Runtime (niet PyTorch) |
+| Chunk size | 480 samples (30ms @ 16kHz) |
+| State | h/c tensors (shape 2,1,64) |
+
+**KRITIEK:** Gebruik Silero VAD **v4 model**, NIET nieuwere versies!
+- v4: inputs `h`/`c` (shape 2,1,64) - WERKT
+- Nieuwere: input `state` (shape 128) - WERKT NIET correct
+- Download URL: `https://github.com/snakers4/silero-vad/raw/v4.0/files/silero_vad.onnx`
+
+**Rationale:**
+1. ML-based, zeer accuraat voor speech vs noise
+2. ONNX Runtime lichter dan PyTorch op ARM Pi
+3. Bewezen in fase1-desktop
+4. Geen dependency hell (PyTorch op ARM = problematisch)
+
+**Alternatieven overwogen:**
+| Optie | Reden afgewezen |
+|-------|-----------------|
+| PyTorch Silero | Dependency hell op ARM Pi |
+| WebRTC VAD | Minder accuraat |
+| speech_recognition energy-based | Minder robuust in noisy environments |
+
+**Referentie:** [fase3-pi/PLAN.md](fase3-pi/PLAN.md)
+
+---
+
 ## Open vragen
 
 > Vragen die nog beantwoord moeten worden tijdens implementatie.
@@ -591,7 +674,9 @@ orchestrator/app/
 | D011 | 4-Laags Perceptie Architectuur | 2026-01-16 | Gepland |
 | D012 | Hardware Uitbreiding (ToF, LEDs, OLED) | 2026-01-16 | Besteld |
 | D013 | Fase 2 Architectuur (Modulair + WebSocket) | 2026-01-16 | ✅ Geïmplementeerd |
+| D014 | Wake Word - OpenWakeWord v0.4.0 | 2026-01-16 | ✅ Geïmplementeerd |
+| D015 | Pi VAD - Silero VAD v4 ONNX | 2026-01-16 | ✅ Geïmplementeerd |
 
 ---
 
-*Laatst bijgewerkt: 2026-01-16 (Fase 2 Docker stack werkend - Ollama in stack, audio pipeline getest)*
+*Laatst bijgewerkt: 2026-01-17 (Fase 3a compleet - Pi audio pipeline werkend)*
