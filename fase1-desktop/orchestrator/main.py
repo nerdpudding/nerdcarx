@@ -17,9 +17,11 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional, List
 
+import asyncio
 import httpx
 import yaml
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import StreamingResponse
 from num2words import num2words
 from pydantic import BaseModel
 
@@ -61,6 +63,7 @@ TTS_REFERENCE_ID = TTS_CONFIG.get("reference_id", "dutch2")
 TTS_TEMPERATURE = TTS_CONFIG.get("temperature", 0.2)
 TTS_TOP_P = TTS_CONFIG.get("top_p", 0.5)
 TTS_FORMAT = TTS_CONFIG.get("format", "wav")
+TTS_STREAMING = TTS_CONFIG.get("streaming", False)
 
 
 app = FastAPI(
@@ -266,6 +269,19 @@ def normalize_for_tts(text: str) -> str:
     text = re.sub(r'\b\d+(?:\.\d+)?\b', replace_number, text)
 
     return text
+
+
+def split_into_sentences(text: str) -> list[str]:
+    """
+    Split tekst in zinnen voor pseudo-streaming TTS.
+    Behoudt interpunctie en filtert lege zinnen.
+    """
+    # Split op . ! ? gevolgd door spatie of einde string
+    # Maar niet op afkortingen als "bv." of "nr."
+    sentences = re.split(r'(?<=[.!?])\s+', text.strip())
+
+    # Filter lege zinnen en strip whitespace
+    return [s.strip() for s in sentences if s.strip()]
 
 
 # === TTS SERVICE (Fish Audio S1-mini) ===
@@ -555,7 +571,8 @@ async def get_config():
             "reference_id": TTS_REFERENCE_ID,
             "temperature": TTS_TEMPERATURE,
             "top_p": TTS_TOP_P,
-            "format": TTS_FORMAT
+            "format": TTS_FORMAT,
+            "streaming": TTS_STREAMING
         }
     }
 
@@ -784,6 +801,158 @@ async def conversation(request: ChatRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.post("/conversation/streaming")
+async def conversation_streaming(request: ChatRequest):
+    """
+    Streaming conversation endpoint.
+    Stuurt LLM response als tekst, gevolgd door TTS audio per zin als SSE events.
+
+    Response format (Server-Sent Events):
+        event: metadata
+        data: {"response": "...", "emotion": {...}, "function_calls": [...]}
+
+        event: audio
+        data: {"sentence": "Eerste zin.", "audio_base64": "...", "index": 0}
+
+        event: audio
+        data: {"sentence": "Tweede zin.", "audio_base64": "...", "index": 1}
+
+        event: done
+        data: {"total_sentences": 2}
+    """
+    conv_id = request.conversation_id or "default"
+    system_prompt = request.system_prompt or DEFAULT_SYSTEM_PROMPT
+    temperature = request.temperature or OLLAMA_TEMPERATURE
+    num_ctx = request.num_ctx or OLLAMA_NUM_CTX
+
+    # Haal emotion state op
+    emotion_state = get_emotion_state(conv_id)
+    current_emotion = emotion_state["emotion"]
+    was_auto_reset = emotion_state.get("auto_reset", False)
+
+    emotion_context = f"\n\nJe huidige emotionele staat is: {current_emotion}. Verander deze alleen als de interactie daar aanleiding toe geeft."
+    enhanced_system_prompt = system_prompt + emotion_context
+
+    # Haal of maak conversation history
+    if conv_id not in conversations:
+        conversations[conv_id] = {
+            "system_prompt": system_prompt,
+            "messages": []
+        }
+    conv = conversations[conv_id]
+
+    user_message = {"role": "user", "content": request.message}
+    conv["messages"].append({"role": "user", "content": request.message})
+
+    messages = [{"role": "system", "content": enhanced_system_prompt}]
+    for i, msg in enumerate(conv["messages"]):
+        if i == len(conv["messages"]) - 1 and msg["role"] == "user":
+            messages.append(user_message)
+        else:
+            messages.append(msg.copy())
+
+    options = {
+        "temperature": temperature,
+        "top_p": OLLAMA_TOP_P,
+        "repeat_penalty": OLLAMA_REPEAT_PENALTY,
+        "num_ctx": num_ctx
+    }
+
+    payload = {
+        "model": OLLAMA_MODEL,
+        "messages": messages,
+        "stream": False,
+        "keep_alive": -1,
+        "options": options
+    }
+
+    if request.enable_tools is not False:
+        payload["tools"] = TOOLS
+
+    async def generate_stream():
+        try:
+            async with httpx.AsyncClient(timeout=120.0) as client:
+                # LLM call
+                t_llm_start = time.perf_counter()
+                resp = await client.post(f"{OLLAMA_URL}/api/chat", json=payload)
+                resp.raise_for_status()
+                result = resp.json()
+
+                message = result["message"]
+                content = message.get("content", "")
+                tool_calls = message.get("tool_calls", [])
+
+                function_calls = []
+
+                if tool_calls:
+                    content, function_calls = await complete_tool_calls(
+                        client, messages, tool_calls, options
+                    )
+                else:
+                    content, function_calls = parse_text_tool_calls(content)
+                    for fc in function_calls:
+                        await execute_tool(fc.name, fc.arguments, client)
+
+                t_llm_end = time.perf_counter()
+                timing_llm_ms = round((t_llm_end - t_llm_start) * 1000)
+
+                # Check emotie verandering
+                emotion_changed = False
+                new_emotion = current_emotion
+                for fc in function_calls:
+                    if fc.name == "show_emotion":
+                        new_emotion = fc.arguments.get("emotion", current_emotion)
+                        if new_emotion != current_emotion:
+                            update_emotion_state(conv_id, new_emotion)
+                            emotion_changed = True
+
+                conv["messages"].append({"role": "assistant", "content": content})
+
+                # Stuur metadata eerst
+                metadata = {
+                    "response": content,
+                    "emotion": {
+                        "current": new_emotion,
+                        "changed": emotion_changed,
+                        "auto_reset": was_auto_reset
+                    },
+                    "function_calls": [{"name": fc.name, "arguments": fc.arguments} for fc in function_calls],
+                    "timing_ms": {"llm": timing_llm_ms}
+                }
+                yield f"event: metadata\ndata: {json.dumps(metadata)}\n\n"
+
+                # Split in zinnen en genereer TTS per zin
+                sentences = split_into_sentences(content)
+
+                for i, sentence in enumerate(sentences):
+                    audio_base64, normalized_text = await synthesize_speech(sentence, new_emotion, client)
+
+                    audio_event = {
+                        "sentence": sentence,
+                        "normalized": normalized_text,
+                        "audio_base64": audio_base64,
+                        "index": i
+                    }
+                    yield f"event: audio\ndata: {json.dumps(audio_event)}\n\n"
+
+                # Done event
+                yield f"event: done\ndata: {json.dumps({'total_sentences': len(sentences)})}\n\n"
+
+        except Exception as e:
+            error_event = {"error": str(e)}
+            yield f"event: error\ndata: {json.dumps(error_event)}\n\n"
+
+    return StreamingResponse(
+        generate_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"
+        }
+    )
+
+
 @app.delete("/conversation/{conversation_id}")
 async def clear_conversation(conversation_id: str):
     """Wis conversation history."""
@@ -811,7 +980,7 @@ async def reload_config():
     global config, OLLAMA_MODEL, OLLAMA_TEMPERATURE, OLLAMA_TOP_P
     global OLLAMA_REPEAT_PENALTY, OLLAMA_NUM_CTX, DEFAULT_SYSTEM_PROMPT
     global AVAILABLE_EMOTIONS, DEFAULT_EMOTION, AUTO_RESET_MINUTES, VISION_MOCK_IMAGE_PATH
-    global TTS_CONFIG, TTS_URL, TTS_ENABLED, TTS_REFERENCE_ID, TTS_TEMPERATURE, TTS_TOP_P, TTS_FORMAT
+    global TTS_CONFIG, TTS_URL, TTS_ENABLED, TTS_REFERENCE_ID, TTS_TEMPERATURE, TTS_TOP_P, TTS_FORMAT, TTS_STREAMING
 
     try:
         config = load_config()
@@ -835,8 +1004,9 @@ async def reload_config():
         TTS_TEMPERATURE = TTS_CONFIG.get("temperature", 0.2)
         TTS_TOP_P = TTS_CONFIG.get("top_p", 0.5)
         TTS_FORMAT = TTS_CONFIG.get("format", "wav")
+        TTS_STREAMING = TTS_CONFIG.get("streaming", False)
 
-        return {"status": "ok", "message": "Config herladen", "model": OLLAMA_MODEL, "tts_enabled": TTS_ENABLED}
+        return {"status": "ok", "message": "Config herladen", "model": OLLAMA_MODEL, "tts_enabled": TTS_ENABLED, "tts_streaming": TTS_STREAMING}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Config reload failed: {str(e)}")
 

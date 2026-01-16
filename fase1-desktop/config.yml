@@ -180,3 +180,8 @@ tts:
 
   # Output format
   format: "wav"
+
+  # Streaming mode: TTS per zin ipv alles in één keer
+  # Voordeel: snellere perceived latency (eerste zin hoor je eerder)
+  # Nadeel: kleine pauzes tussen zinnen mogelijk
+  streaming: true

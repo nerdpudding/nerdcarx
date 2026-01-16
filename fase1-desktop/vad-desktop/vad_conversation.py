@@ -16,8 +16,13 @@ Gebruik:
 import argparse
 import base64
 import io
+import json
+import select
 import sys
+import termios
+import threading
 import time
+import tty
 import uuid
 import wave
 from collections import deque
@@ -28,6 +33,11 @@ import pyaudio
 import requests
 import torch
 from silero_vad import load_silero_vad
+
+# Global flag voor interrupt
+playback_interrupted = False
+playback_lock = threading.Lock()
+original_terminal_settings = None  # Voor terminal restore na Ctrl+C
 
 # Audio response bestand (wordt elke keer overschreven)
 RESPONSE_WAV = Path(__file__).parent / "last_response.wav"
@@ -145,11 +155,148 @@ def chat_via_orchestrator(message: str, conversation_id: str) -> tuple:
     return result['response'], result.get('function_calls', []), emotion_info, audio_base64, timing_ms, normalized_text
 
 
-def play_audio(audio_base64: str) -> bool:
+def chat_via_orchestrator_streaming(message: str, conversation_id: str, on_audio_chunk=None, on_metadata=None):
+    """
+    Streaming versie van chat_via_orchestrator.
+    Roept callbacks aan zodra data binnenkomt:
+    - on_metadata(metadata_dict): als LLM response + emotie info binnen is
+    - on_audio_chunk(sentence, audio_base64, index): per zin audio
+
+    Returns: (response_text, function_calls, emotion_info, timing_ms)
+    """
+    payload = {
+        "message": message,
+        "conversation_id": conversation_id
+    }
+
+    response_text = ""
+    function_calls = []
+    emotion_info = {"current": "neutral", "changed": False, "auto_reset": False}
+    timing_ms = {}
+
+    try:
+        with requests.post(
+            f"{ORCHESTRATOR_URL}/conversation/streaming",
+            json=payload,
+            stream=True,
+            timeout=120
+        ) as response:
+            response.raise_for_status()
+
+            event_type = None
+            data_buffer = ""
+
+            for line in response.iter_lines(decode_unicode=True):
+                if not line:
+                    # Lege regel = einde van event
+                    if event_type and data_buffer:
+                        try:
+                            data = json.loads(data_buffer)
+
+                            if event_type == "metadata":
+                                response_text = data.get("response", "")
+                                function_calls = data.get("function_calls", [])
+                                emotion_info = data.get("emotion", emotion_info)
+                                timing_ms = data.get("timing_ms", {})
+                                if on_metadata:
+                                    on_metadata(data)
+
+                            elif event_type == "audio":
+                                if on_audio_chunk:
+                                    on_audio_chunk(
+                                        data.get("sentence", ""),
+                                        data.get("audio_base64"),
+                                        data.get("index", 0),
+                                        data.get("normalized")
+                                    )
+
+                            elif event_type == "error":
+                                print(f"❌ Stream error: {data.get('error')}")
+
+                        except json.JSONDecodeError:
+                            pass
+
+                    event_type = None
+                    data_buffer = ""
+                    continue
+
+                if line.startswith("event: "):
+                    event_type = line[7:]
+                elif line.startswith("data: "):
+                    data_buffer = line[6:]
+
+    except Exception as e:
+        print(f"❌ Streaming error: {e}")
+
+    return response_text, function_calls, emotion_info, timing_ms
+
+
+def check_for_keypress():
+    """Non-blocking check voor toetsaanslagen (Unix)."""
+    if select.select([sys.stdin], [], [], 0)[0]:
+        return sys.stdin.read(1)
+    return None
+
+
+def start_keyboard_listener():
+    """Start keyboard listener in achtergrond thread."""
+    global playback_interrupted, original_terminal_settings
+
+    # Bewaar originele terminal settings VOORDAT we iets veranderen
+    try:
+        original_terminal_settings = termios.tcgetattr(sys.stdin)
+    except:
+        original_terminal_settings = None
+
+    def listener():
+        global playback_interrupted
+        try:
+            tty.setcbreak(sys.stdin.fileno())
+            while True:
+                if select.select([sys.stdin], [], [], 0.1)[0]:
+                    key = sys.stdin.read(1)
+                    if key == ' ':  # Spatiebalk
+                        with playback_lock:
+                            playback_interrupted = True
+                        print("\n⏹️  Onderbroken!")
+        except:
+            pass
+
+    thread = threading.Thread(target=listener, daemon=True)
+    thread.start()
+    return thread
+
+
+def restore_terminal():
+    """Herstel terminal settings (aanroepen bij exit)."""
+    global original_terminal_settings
+    if original_terminal_settings is not None:
+        try:
+            termios.tcsetattr(sys.stdin, termios.TCSADRAIN, original_terminal_settings)
+        except:
+            pass
+
+
+def reset_interrupt():
+    """Reset interrupt flag."""
+    global playback_interrupted
+    with playback_lock:
+        playback_interrupted = False
+
+
+def is_interrupted():
+    """Check of playback onderbroken moet worden."""
+    global playback_interrupted
+    with playback_lock:
+        return playback_interrupted
+
+
+def play_audio(audio_base64: str, check_interrupt: bool = False) -> bool:
     """
     Speel audio af via speakers.
     Slaat audio op als last_response.wav (overschrijft vorige).
-    Returns: True als afspelen gelukt is.
+    Als check_interrupt=True, check periodiek of playback onderbroken moet worden.
+    Returns: True als afspelen gelukt is (niet onderbroken).
     """
     if not audio_base64:
         return False
@@ -166,7 +313,8 @@ def play_audio(audio_base64: str) -> bool:
             channels = wf.getnchannels()
             sample_width = wf.getsampwidth()
             frame_rate = wf.getframerate()
-            frames = wf.readframes(wf.getnframes())
+            n_frames = wf.getnframes()
+            frames = wf.readframes(n_frames)
 
         # Speel af via PyAudio
         p = pyaudio.PyAudio()
@@ -176,11 +324,33 @@ def play_audio(audio_base64: str) -> bool:
             rate=frame_rate,
             output=True
         )
-        stream.write(frames)
-        stream.stop_stream()
-        stream.close()
-        p.terminate()
-        return True
+
+        if check_interrupt:
+            # Speel in chunks en check voor interrupt
+            chunk_size = frame_rate * sample_width * channels // 10  # 100ms chunks
+            offset = 0
+            interrupted = False
+
+            while offset < len(frames):
+                if is_interrupted():
+                    interrupted = True
+                    break
+
+                chunk = frames[offset:offset + chunk_size]
+                stream.write(chunk)
+                offset += chunk_size
+
+            stream.stop_stream()
+            stream.close()
+            p.terminate()
+            return not interrupted
+        else:
+            # Normale playback (geen interrupt check)
+            stream.write(frames)
+            stream.stop_stream()
+            stream.close()
+            p.terminate()
+            return True
 
     except Exception as e:
         print(f"⚠️ Audio playback fout: {e}")
@@ -267,6 +437,8 @@ def main():
     parser.add_argument('--silence-duration', type=float, default=SILENCE_DURATION,
                         help=f'Stilte duur voor einde detectie (default: {SILENCE_DURATION}s)')
     parser.add_argument('--device', type=int, help='Audio device ID (skip selectie)')
+    parser.add_argument('--streaming', action='store_true',
+                        help='Forceer streaming mode (overschrijft config)')
     args = parser.parse_args()
 
     # Check services
@@ -295,6 +467,7 @@ def main():
         print("⚠️ TTS niet bereikbaar (audio uit)")
 
     # Herlaad orchestrator config en toon actieve configuratie
+    config_streaming = False
     try:
         requests.post(f"{ORCHESTRATOR_URL}/reload-config", timeout=5)
         config_resp = requests.get(f"{ORCHESTRATOR_URL}/config", timeout=5)
@@ -303,8 +476,15 @@ def main():
             print(f"📋 Config herladen:")
             print(f"   LLM: {config.get('ollama', {}).get('model', 'onbekend')}")
             print(f"   STT: {config.get('voxtral', {}).get('model', 'onbekend')}")
+            config_streaming = config.get('tts', {}).get('streaming', False)
     except:
         print("⚠️ Kon config niet herladen (niet kritiek)")
+
+    # Bepaal streaming mode: --streaming flag overschrijft config
+    if args.streaming:
+        use_streaming = True
+    else:
+        use_streaming = config_streaming
 
     # Laad VAD model
     print("🔄 VAD model laden...")
@@ -342,9 +522,18 @@ def main():
     conversation_id = f"vad-{uuid.uuid4().hex[:8]}"
     turn_count = 0
 
+    # Start keyboard listener voor interrupt
+    if use_streaming:
+        start_keyboard_listener()
+
     print(f"\n🎙️ VAD Conversation gestart")
     print("=" * 60)
-    print("Flow: [Mic] → [VAD] → [STT] → [LLM] → [TTS] → [Speaker]")
+    if use_streaming:
+        print("Flow: [Mic] → [VAD] → [STT] → [LLM] → [TTS per zin] → [Speaker]")
+        print("Mode: 🚀 STREAMING (snellere response)")
+    else:
+        print("Flow: [Mic] → [VAD] → [STT] → [LLM] → [TTS] → [Speaker]")
+        print("Mode: 📦 BATCH (alle TTS in één keer)")
     print(f"Conversation ID: {conversation_id}")
     print(f"TTS: {'🔊 Aan' if services['tts'] else '🔇 Uit'}")
     print("Vision: Via 'take_photo' tool (vraag: 'wat zie je?')")
@@ -352,6 +541,8 @@ def main():
     print("Instructies:")
     print("  • Spreek wanneer je klaar bent")
     print(f"  • Stilte van {args.silence_duration}s beëindigt je beurt")
+    if use_streaming:
+        print("  • Druk SPATIE om audio te onderbreken")
     print(f"  • Zeg '{STOP_PHRASE}' om te stoppen")
     print("  • Ctrl+C om direct te stoppen")
     print("=" * 60)
@@ -392,19 +583,6 @@ def main():
                     print("\n👋 Stop commando gedetecteerd. Tot ziens!")
                     break
 
-                # Get AI response via Orchestrator → Ministral + TTS
-                print("🔄 Processing (LLM+TTS)...", end="", flush=True)
-                t_proc_start = time.perf_counter()
-                ai_response, function_calls, emotion_info, audio_base64, server_timing, normalized_text = chat_via_orchestrator(
-                    user_text,
-                    conversation_id
-                )
-                t_proc_end = time.perf_counter()
-                timings['llm_tts_total'] = (t_proc_end - t_proc_start) * 1000
-                timings['llm'] = server_timing.get('llm', 0)
-                timings['tts'] = server_timing.get('tts', 0)
-                print(f" ✅ (LLM: {timings['llm']}ms | TTS: {timings['tts']}ms)")
-
                 # Emoji mapping voor emoties
                 emotion_emojis = {
                     "happy": "😊", "sad": "😢", "angry": "😠",
@@ -414,55 +592,156 @@ def main():
                     "bored": "😑", "proud": "😤", "worried": "😟"
                 }
 
-                # Debug: Toon ALLE tool calls
-                if function_calls:
-                    print(f"🔧 [TOOL CALLS] {len(function_calls)} tool call(s):")
-                    for fc in function_calls:
-                        name = fc.get('name', '')
-                        args = fc.get('arguments', {})
-                        print(f"   → {name}({args})")
+                if use_streaming:
+                    # === STREAMING MODE ===
+                    reset_interrupt()
+                    print("🔄 Processing (LLM)...", end="", flush=True)
+                    t_proc_start = time.perf_counter()
+
+                    ai_response = ""
+                    function_calls = []
+                    emotion_info = {}
+                    sentences_played = 0
+                    was_interrupted = False
+                    t_llm_done = None
+                    t_last_tts_end = None
+                    tts_times = []  # Per-zin TTS tijden
+                    llm_ms = 0
+
+                    def on_metadata(data):
+                        nonlocal ai_response, function_calls, emotion_info, t_llm_done, t_last_tts_end, llm_ms
+                        t_llm_done = time.perf_counter()
+                        t_last_tts_end = t_llm_done  # Start punt voor eerste TTS meting
+                        ai_response = data.get("response", "")
+                        function_calls = data.get("function_calls", [])
+                        emotion_info = data.get("emotion", {})
+                        llm_ms = data.get("timing_ms", {}).get("llm", 0)
+                        print(f" ✅ ({llm_ms}ms)")
+
+                        # Toon tool calls
+                        if function_calls:
+                            print(f"🔧 [TOOL CALLS] {len(function_calls)} tool call(s):")
+                            for fc in function_calls:
+                                print(f"   → {fc.get('name', '')}({fc.get('arguments', {})})")
+                        else:
+                            print("🔧 [TOOL CALLS] geen")
+
+                        # Emotie status
+                        emotion = emotion_info.get('current', 'neutral')
+                        emoji = emotion_emojis.get(emotion, "🤖")
+                        changed = emotion_info.get('changed', False)
+                        status = "VERANDERD" if changed else "behouden"
+                        print(f"🎭 [EMOTIE] {emotion} {emoji} ({status})")
+                        print(f"🤖 NerdCarX: {ai_response}")
+
+                    def on_audio_chunk(sentence, audio_base64, index, normalized):
+                        nonlocal sentences_played, was_interrupted, t_last_tts_end, tts_times
+                        if was_interrupted or is_interrupted():
+                            was_interrupted = True
+                            return
+
+                        # Meet TTS tijd (tijd sinds vorige chunk klaar was)
+                        t_now = time.perf_counter()
+                        tts_ms = (t_now - t_last_tts_end) * 1000
+                        tts_times.append(tts_ms)
+
+                        # Toon zin met TTS tijd
+                        display_text = (normalized or sentence)[:40]
+                        print(f"🔊 [{index+1}] \"{display_text}...\" (TTS: {tts_ms:.0f}ms)")
+
+                        if audio_base64:
+                            if not play_audio(audio_base64, check_interrupt=True):
+                                was_interrupted = True
+                            else:
+                                sentences_played += 1
+                            # Update t_last_tts_end NA playback voor volgende meting
+                            t_last_tts_end = time.perf_counter()
+
+                    chat_via_orchestrator_streaming(
+                        user_text, conversation_id,
+                        on_audio_chunk=on_audio_chunk,
+                        on_metadata=on_metadata
+                    )
+
+                    t_proc_end = time.perf_counter()
+
+                    if was_interrupted:
+                        print(f"⏹️  Gestopt na {sentences_played} zin(nen)")
+
+                    # === TIMING SUMMARY ===
+                    total_tts = sum(tts_times)
+                    total_turn = (t_proc_end - t_proc_start) * 1000
+                    print(f"─" * 50)
+                    print(f"⏱️  [TURN TIMING]")
+                    print(f"    STT:  {timings.get('stt', 0):.0f}ms")
+                    print(f"    LLM:  {llm_ms}ms")
+                    print(f"    TTS:  {total_tts:.0f}ms ({len(tts_times)} zinnen: {', '.join(f'{t:.0f}' for t in tts_times)}ms)")
+                    print(f"    ────────────────")
+                    print(f"    TOTAAL: {timings.get('stt', 0) + llm_ms + total_tts:.0f}ms (excl. playback)")
+
                 else:
-                    print("🔧 [TOOL CALLS] geen")
+                    # === BATCH MODE (origineel) ===
+                    print("🔄 Processing (LLM+TTS)...", end="", flush=True)
+                    t_proc_start = time.perf_counter()
+                    ai_response, function_calls, emotion_info, audio_base64, server_timing, normalized_text = chat_via_orchestrator(
+                        user_text,
+                        conversation_id
+                    )
+                    t_proc_end = time.perf_counter()
+                    timings['llm_tts_total'] = (t_proc_end - t_proc_start) * 1000
+                    timings['llm'] = server_timing.get('llm', 0)
+                    timings['tts'] = server_timing.get('tts', 0)
+                    print(f" ✅ (LLM: {timings['llm']}ms | TTS: {timings['tts']}ms)")
 
-                # Emotie status tonen
-                emotion = emotion_info.get('current', 'neutral')
-                emoji = emotion_emojis.get(emotion, "🤖")
-                changed = emotion_info.get('changed', False)
-                auto_reset = emotion_info.get('auto_reset', False)
-
-                if auto_reset:
-                    status = "auto-reset"
-                elif changed:
-                    status = "VERANDERD"
-                else:
-                    status = "behouden"
-
-                print(f"🎭 [EMOTIE] {emotion} {emoji} ({status})")
-
-                # Toon genormaliseerde TTS tekst als die verschilt
-                if normalized_text:
-                    print(f"📝 [TTS] {normalized_text}")
-
-                print(f"🤖 NerdCarX: {ai_response}")
-
-                # Speel audio response af
-                if audio_base64:
-                    print("🔊 Afspelen...", end="", flush=True)
-                    t_play_start = time.perf_counter()
-                    if play_audio(audio_base64):
-                        t_play_end = time.perf_counter()
-                        timings['playback'] = (t_play_end - t_play_start) * 1000
-                        print(f" ✅ ({timings['playback']:.0f}ms)")
+                    # Debug: Toon ALLE tool calls
+                    if function_calls:
+                        print(f"🔧 [TOOL CALLS] {len(function_calls)} tool call(s):")
+                        for fc in function_calls:
+                            name = fc.get('name', '')
+                            args = fc.get('arguments', {})
+                            print(f"   → {name}({args})")
                     else:
-                        print(" ❌")
-                        timings['playback'] = 0
-                else:
-                    print("⚠️ Geen audio ontvangen (TTS uit?)")
-                    timings['playback'] = 0
+                        print("🔧 [TOOL CALLS] geen")
 
-                # === TIMING SUMMARY ===
-                total = timings.get('stt', 0) + timings.get('llm_tts_total', 0) + timings.get('playback', 0)
-                print(f"⏱️  [TIMING] STT: {timings.get('stt', 0):.0f}ms | LLM: {timings.get('llm', 0)}ms | TTS: {timings.get('tts', 0)}ms | Playback: {timings.get('playback', 0):.0f}ms | TOTAAL: {total:.0f}ms")
+                    # Emotie status tonen
+                    emotion = emotion_info.get('current', 'neutral')
+                    emoji = emotion_emojis.get(emotion, "🤖")
+                    changed = emotion_info.get('changed', False)
+                    auto_reset = emotion_info.get('auto_reset', False)
+
+                    if auto_reset:
+                        status = "auto-reset"
+                    elif changed:
+                        status = "VERANDERD"
+                    else:
+                        status = "behouden"
+
+                    print(f"🎭 [EMOTIE] {emotion} {emoji} ({status})")
+
+                    # Toon genormaliseerde TTS tekst als die verschilt
+                    if normalized_text:
+                        print(f"📝 [TTS] {normalized_text}")
+
+                    print(f"🤖 NerdCarX: {ai_response}")
+
+                    # Speel audio response af
+                    if audio_base64:
+                        print("🔊 Afspelen...", end="", flush=True)
+                        t_play_start = time.perf_counter()
+                        if play_audio(audio_base64):
+                            t_play_end = time.perf_counter()
+                            timings['playback'] = (t_play_end - t_play_start) * 1000
+                            print(f" ✅ ({timings['playback']:.0f}ms)")
+                        else:
+                            print(" ❌")
+                            timings['playback'] = 0
+                    else:
+                        print("⚠️ Geen audio ontvangen (TTS uit?)")
+                        timings['playback'] = 0
+
+                    # === TIMING SUMMARY ===
+                    total = timings.get('stt', 0) + timings.get('llm_tts_total', 0) + timings.get('playback', 0)
+                    print(f"⏱️  [TIMING] STT: {timings.get('stt', 0):.0f}ms | LLM: {timings.get('llm', 0)}ms | TTS: {timings.get('tts', 0)}ms | Playback: {timings.get('playback', 0):.0f}ms | TOTAAL: {total:.0f}ms")
 
             except requests.exceptions.ConnectionError as e:
                 print(f"❌ Verbindingsfout: {e}")
@@ -474,6 +753,9 @@ def main():
     except KeyboardInterrupt:
         print("\n\n👋 Conversation gestopt.")
     finally:
+        # Herstel terminal settings (belangrijk voor keyboard listener)
+        restore_terminal()
+
         stream.stop_stream()
         stream.close()
         p.terminate()
