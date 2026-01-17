@@ -7,7 +7,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
 
 from ..config import get_config
 from ..models import EmotionManager, ConversationManager
-from ..services.tools import ToolRegistry, EmotionTool, VisionTool
+from ..services.tools import ToolRegistry, EmotionTool, VisionTool, SleepTool
 from ..utils import ConversationDebugger
 from ..websocket import ConnectionManager, MessageHandler
 
@@ -51,6 +51,7 @@ def get_message_handler() -> MessageHandler:
             llm_url=config.ollama.url,
             llm_model=config.ollama.model
         ))
+        tool_registry.register(SleepTool())
 
         # Debug logger (config bepaalt of het actief is)
         debugger = ConversationDebugger(

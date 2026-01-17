@@ -176,8 +176,10 @@ class MessageHandler:
                     llm, messages, response.tool_calls, conv_id, client_id
                 )
                 tools_ms = (time.perf_counter() - t0) * 1000
-                tool_names = [fc.name for fc in function_calls]
-                self.debugger.log_step("Tools", tools_ms, {"executed": ", ".join(tool_names)})
+                tool_details = [f"{fc.name}({fc.arguments})" for fc in function_calls]
+                self.debugger.log_step("Tools", tools_ms, {"executed": ", ".join(tool_details)})
+                # Log final response after tool processing
+                self.debugger.log_step("LLM (final)", 0, {"response": content})
 
             conv.add_assistant_message(content)
 

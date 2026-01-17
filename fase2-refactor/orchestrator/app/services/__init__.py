@@ -2,7 +2,7 @@
 from .stt import STTProvider, VoxtralSTT
 from .llm import LLMProvider, OllamaLLM
 from .tts import TTSProvider, FishAudioTTS
-from .tools import Tool, EmotionTool, VisionTool, ToolRegistry
+from .tools import Tool, EmotionTool, VisionTool, SleepTool, ToolRegistry
 
 __all__ = [
     "STTProvider",
@@ -14,5 +14,6 @@ __all__ = [
     "Tool",
     "EmotionTool",
     "VisionTool",
+    "SleepTool",
     "ToolRegistry",
 ]

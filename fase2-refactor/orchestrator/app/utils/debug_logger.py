@@ -101,9 +101,9 @@ class ConversationDebugger:
             # Verbose details
             if self.verbose and step.get("details"):
                 for key, value in step["details"].items():
-                    # Truncate lange waarden
-                    if isinstance(value, str) and len(value) > 60:
-                        value = value[:57] + "..."
+                    # Truncate zeer lange waarden
+                    if isinstance(value, str) and len(value) > 500:
+                        value = value[:497] + "..."
                     lines.append(f"    └─ {key}: {value}")
 
         # Totaal

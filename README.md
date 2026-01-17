@@ -252,6 +252,8 @@ docker compose down  # Alleen als nodig
 #### Verificatie
 
 ```bash
+cd fase2-refactor
+
 # Health check
 curl http://localhost:8200/health
 
@@ -259,6 +261,9 @@ curl http://localhost:8200/health
 curl -X POST http://localhost:8200/chat \
   -H "Content-Type: application/json" \
   -d '{"message": "Hallo!"}'
+
+# Debug logs (timing STT/LLM/TTS per turn)
+docker compose logs orchestrator -f
 ```
 
 ---

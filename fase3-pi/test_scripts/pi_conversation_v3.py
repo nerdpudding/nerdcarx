@@ -155,6 +155,39 @@ def enable_speaker():
         pass
 
 
+def play_beep(p: pyaudio.PyAudio, freq: int = 880, duration: float = 0.15) -> None:
+    """Play a short beep sound."""
+    try:
+        sample_rate = SPEAKER_SAMPLE_RATE or 44100
+        t = np.linspace(0, duration, int(sample_rate * duration), dtype=np.float32)
+        # Sine wave with fade in/out
+        wave = np.sin(2 * np.pi * freq * t)
+        fade_samples = int(sample_rate * 0.02)
+        wave[:fade_samples] *= np.linspace(0, 1, fade_samples)
+        wave[-fade_samples:] *= np.linspace(1, 0, fade_samples)
+        audio = (wave * 16000).astype(np.int16)
+
+        stream = p.open(format=FORMAT, channels=1, rate=sample_rate,
+                       output=True, output_device_index=SPEAKER_DEVICE_INDEX)
+        stream.write(audio.tobytes())
+        stream.stop_stream()
+        stream.close()
+    except Exception:
+        pass
+
+
+def play_startup_sound(p: pyaudio.PyAudio) -> None:
+    """Play R2D2-like startup sequence."""
+    # Quick ascending beeps
+    play_beep(p, freq=400, duration=0.08)
+    time.sleep(0.02)
+    play_beep(p, freq=600, duration=0.06)
+    time.sleep(0.02)
+    play_beep(p, freq=800, duration=0.1)
+    time.sleep(0.05)
+    play_beep(p, freq=1000, duration=0.15)
+
+
 def apply_gain(audio: np.ndarray, gain: float = AUDIO_GAIN) -> np.ndarray:
     amplified = audio.astype(np.float32) * gain
     return np.clip(amplified, -32768, 32767).astype(np.int16)
@@ -227,8 +260,13 @@ def execute_take_photo() -> tuple[str, str]:
     return "No camera available", ""
 
 
-async def handle_function_request(ws, payload: dict, conv_id: str) -> None:
-    """Handle FUNCTION_REQUEST from orchestrator."""
+async def handle_function_request(ws, payload: dict, conv_id: str) -> tuple[bool, str]:
+    """
+    Handle FUNCTION_REQUEST from orchestrator.
+
+    Returns:
+        (should_sleep, result_text)
+    """
     name = payload.get("name", "")
     args = payload.get("arguments", {})
     request_id = payload.get("request_id", "")
@@ -236,6 +274,8 @@ async def handle_function_request(ws, payload: dict, conv_id: str) -> None:
     print(f"  🔧 [{name}] {args}")
 
     result_text, image_base64 = "", ""
+    should_sleep = False
+
     if name == "take_photo":
         result_text, image_base64 = execute_take_photo()
     elif name == "show_emotion":
@@ -243,6 +283,10 @@ async def handle_function_request(ws, payload: dict, conv_id: str) -> None:
         emoji = EMOTION_EMOJIS.get(emotion, "🤖")
         print(f"  {emoji} Emotion: {emotion}")
         result_text = f"Showing {emotion}"
+    elif name == "go_to_sleep":
+        print("  💤 Going to sleep...")
+        result_text = "Going to sleep"
+        should_sleep = True
     else:
         result_text = f"Unknown tool: {name}"
 
@@ -257,6 +301,7 @@ async def handle_function_request(ws, payload: dict, conv_id: str) -> None:
         msg["payload"]["image_base64"] = image_base64
 
     await ws.send(json.dumps(msg))
+    return should_sleep, result_text
 
 
 # ============================================================================
@@ -267,7 +312,7 @@ async def send_audio_and_receive(audio_bytes: bytes, conv_id: str) -> dict:
     """Send audio, receive response."""
     import websockets
 
-    result = {"text": "", "chunks": [], "emotion": "neutral"}
+    result = {"text": "", "chunks": [], "emotion": "neutral", "should_sleep": False}
 
     try:
         async with websockets.connect(f"{WEBSOCKET_URL}?conversation_id={conv_id}", ping_timeout=30) as ws:
@@ -302,7 +347,9 @@ async def send_audio_and_receive(audio_bytes: bytes, conv_id: str) -> dict:
                             break
 
                     elif msg_type == "function_request":
-                        await handle_function_request(ws, data.get("payload", {}), conv_id)
+                        should_sleep, _ = await handle_function_request(ws, data.get("payload", {}), conv_id)
+                        if should_sleep:
+                            result["should_sleep"] = True
 
                     elif msg_type == "error":
                         print(f"  ❌ {data.get('payload', {}).get('error', 'Error')}")
@@ -349,6 +396,7 @@ def wait_for_wake_word(p: pyaudio.PyAudio, wake_model) -> bool:
                 print(f"✨ Wake word detected! (score: {score:.2f})")
                 stream.stop_stream()
                 stream.close()
+                play_beep(p)  # Confirmation beep
                 return True
         return False  # Shutdown requested
     except Exception as e:
@@ -451,11 +499,14 @@ def main():
 
     print(f"✅ Mic: {MIC_SAMPLE_RATE}Hz, Speaker: {SPEAKER_SAMPLE_RATE}Hz")
 
+    # Startup sound
+    play_startup_sound(p)
+
     # Wait for wake word
     if not wait_for_wake_word(p, wake_model):
         return
 
-    # Conversation loop
+    # Start conversation
     conv_id = f"pi-{int(time.time())}"
     turn = 0
     chunk_size = int(MIC_SAMPLE_RATE * VAD_CHUNK_MS / 1000)
@@ -467,6 +518,7 @@ def main():
     print("\n🎙️ Conversation started! (no wake word needed)")
 
     try:
+        # Conversation loop
         while not _shutdown_requested:
             turn += 1
             print(f"\n[Turn {turn}]")
@@ -501,6 +553,23 @@ def main():
                     if chunk:
                         play_audio_base64(chunk, p)
 
+            # Check for sleep command - restart script for clean state
+            if result.get("should_sleep"):
+                print("\n😴 Going to sleep (restarting in 2s...)")
+                play_beep(p, freq=660, duration=0.1)
+                time.sleep(0.05)
+                play_beep(p, freq=440, duration=0.15)
+                # Cleanup
+                stream.stop_stream()
+                stream.close()
+                p.terminate()
+                if old_term is not None:
+                    termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_term)
+                time.sleep(2)
+                # Restart script
+                os.execv(sys.executable, [sys.executable] + sys.argv)
+                return  # Never reached
+
             pre_buffer.clear()
 
     except KeyboardInterrupt:
@@ -508,11 +577,12 @@ def main():
 
     finally:
         # Cleanup audio - met try/except om te zorgen dat termios altijd hersteld wordt
-        try:
-            stream.stop_stream()
-            stream.close()
-        except Exception:
-            pass
+        if stream:
+            try:
+                stream.stop_stream()
+                stream.close()
+            except Exception:
+                pass
         try:
             p.terminate()
         except Exception:
