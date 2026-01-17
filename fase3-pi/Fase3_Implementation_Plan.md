@@ -13,8 +13,8 @@ Fase 3 is opgesplitst in subfases met duidelijke prioriteiten:
 |---------|-------|------------|--------|
 | **3a** | Core audio flow (wake word → VAD → WebSocket → response) | - | ✅ DONE (2026-01-17) |
 | **3a+** | Remote function calls (D016 take_photo pattern) | - | ✅ DONE (2026-01-17) |
-| **3a++** | Debug & startup optimalisatie | **NU** | TODO |
-| **3b** | OLED emotie display | Na 3a++ | TODO |
+| **3a++** | Debug & startup optimalisatie | - | ✅ DONE (2026-01-17) |
+| **3b** | OLED emotie display | **NU** | TODO |
 | **3c** | Hardware uitbreiding (ToF, LEDs, Camera 3) | Na hardware | 🔄 Camera 3 eerst |
 
 ---
@@ -806,11 +806,20 @@ print(f"  🔊 Playing response ({len(chunks)} chunks)")
 
 ### Test Criteria
 
-- [ ] `debug.enabled: true` toont timing in orchestrator console
-- [ ] `debug.log_file` schrijft naar file
-- [ ] Pi v3 script is simpeler en sneller
-- [ ] Ollama eerste request faalt niet meer
-- [ ] (Optioneel) TTS start sneller na rebuild
+- [x] `debug.enabled: true` toont timing in orchestrator console ✅
+- [x] `debug.log_file` schrijft naar file ✅
+- [x] Pi v3 script is simpeler en sneller ✅
+- [x] Ollama eerste request faalt niet meer ✅ (warmup bij startup)
+- [x] TTS start sneller na rebuild ✅ (TORCHINDUCTOR_CACHE_DIR)
+
+### Extra Features Geïmplementeerd (2026-01-17)
+
+- [x] `go_to_sleep` tool - voice command om naar sleep mode te gaan
+- [x] R2D2-achtige startup sound bij script start
+- [x] Wake word confirmation beep
+- [x] Descending beeps bij sleep
+- [x] Script restart bij sleep voor schone state (wake word model, conversation)
+- [x] v1/v2 scripts gearchiveerd naar `test_scripts/archive/`
 
 ---
 
@@ -978,6 +987,11 @@ python main.py
 | 2026-01-16 | SETUP.md aangemaakt met complete installatie instructies en troubleshooting |
 | 2026-01-17 | **pi_conversation.py** werkend - volledige flow: wake → VAD → WebSocket → TTS playback |
 | 2026-01-17 | End-to-end test succesvol: 6 turns, function calls (emotion, take_photo) ontvangen |
+| 2026-01-17 | **Subfase 3a++** COMPLEET - debug logging, TTS cache, Ollama warmup |
+| 2026-01-17 | **go_to_sleep tool** - voice command voor sleep mode met script restart |
+| 2026-01-17 | **Audio feedback** - startup sound, wake word beep, sleep beeps |
+| 2026-01-17 | **System prompt** verbeterd - volwassen toon, striktere tool instructies |
+| 2026-01-17 | v1/v2 scripts gearchiveerd, v3 is nu de primaire versie |
 
 ---
 

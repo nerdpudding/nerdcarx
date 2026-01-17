@@ -379,9 +379,15 @@ Zie [`fase1-desktop/README.md`](fase1-desktop/README.md) voor de oude conda-base
   - WebSocket communicatie Pi ↔ Desktop orchestrator
   - TTS audio playback op I2S speaker
   - End-to-end test succesvol: 6 turns met function calls
-- ⏳ **Subfase 3a+** - Modulaire Pi client + Remote Tool Pattern ([D016](DECISIONS.md))
+- ✅ **Subfase 3a+ COMPLEET** - Remote Tool Pattern ([D016](DECISIONS.md))
+  - take_photo werkt: Pi maakt foto → stuurt naar Desktop → LLM analyseert
+- ✅ **Subfase 3a++ COMPLEET** - Debug & Startup optimalisatie (2026-01-17)
+  - Debug logging met timing per stap (STT/LLM/Tools/TTS)
+  - TTS compile cache persistent (snellere restart)
+  - Ollama warmup bij startup (geen cold start failures)
+  - go_to_sleep voice command (zeg "go to sleep")
+  - Audio feedback: startup sound, wake word beep, sleep beeps
 - ⏳ Camera Module 3 (verwacht 17 jan)
-- ⏳ take_photo functie echt implementeren (Pi maakt foto, stuurt naar Desktop)
 - ⏳ OLED emotie display (Subfase 3b)
 - Zie [`fase3-pi/Fase3_Implementation_Plan.md`](fase3-pi/Fase3_Implementation_Plan.md) voor details
 
@@ -402,10 +408,11 @@ Zie [`fase1-desktop/README.md`](fase1-desktop/README.md) voor de oude conda-base
 **Wat werkt:**
 - STT (Voxtral Mini 3B) - transcriptie via vLLM op GPU1
 - LLM (Ministral 14B) - responses + function calling op GPU0
-- Vision (take_photo tool) - foto analyse on-demand
+- Vision (take_photo tool) - foto analyse on-demand (remote via Pi)
 - Emotion State Machine - persistente emotie state met 15 emoties
 - TTS (Fish Audio S1-mini) - Nederlandse spraaksynthese + streaming
 - VAD - hands-free gesprekken met gedetailleerde timing output
+- Sleep mode (go_to_sleep tool) - voice command "go to sleep"
 - Centrale config (config.yml)
 
 **Hardware status:** ✅ Pi Audio Pipeline werkend (2026-01-17)
