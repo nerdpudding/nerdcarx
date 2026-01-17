@@ -5,7 +5,6 @@ Een AI-gestuurde robotauto gebaseerd op de PiCar-X, met lokale spraakinteractie,
 ## Inhoudsopgave
 
 - [Werkwijze](#werkwijze)
-- [Voor AI Assistenten](#voor-ai-assistenten)
 - [Doelstelling](#doelstelling)
 - [Concept Samenvatting](#concept-samenvatting)
 - [Fasen](#fasen)
@@ -20,6 +19,8 @@ Een AI-gestuurde robotauto gebaseerd op de PiCar-X, met lokale spraakinteractie,
 > - Wat onze lokale AI stack toevoegt boven de standaard PiCar-X
 > - C4 diagrammen (Context, Container, Component) per fase
 > - Huidige status, roadmap en toekomstige uitbreidingen
+
+> **🤖 AI Assistenten:** Zie [`AI_INSTRUCTIONS.md`](AI_INSTRUCTIONS.md) voor instructies bij het werken met dit project.
 
 ---
 
@@ -53,96 +54,6 @@ Alle projectbeslissingen staan op **één plek**: [`DECISIONS.md`](DECISIONS.md)
 - **Archief blijft intact** - origineel concept als referentie
 - **Minder bijwerken** - alleen DECISIONS.md + actieve PLAN
 - **Schaalt** - werkt ook als het project groeit
-
----
-
-## Voor AI Assistenten
-
-> **BELANGRIJK:** Lees deze sectie bij elke nieuwe sessie of na context compactie.
-
-### Taal
-
-- **Nederlands** voor alle communicatie en documentatie
-- **Uitzonderingen:** Code (Engels), `ARCHITECTURE.md` (Engels), technische termen
-- Gebruiker kan soms Engels gebruiken, volg dan de taal van de gebruiker
-
-### Inleesvolgorde (ALTIJD eerst lezen!)
-
-Bij start van een sessie of na compactie, lees in deze volgorde:
-
-1. **`README.md`** - Dit bestand, overzicht en huidige status
-2. **`ARCHITECTURE.md`** - Technische architectuur en design rationale
-3. **`DECISIONS.md`** - Alle beslissingen (bron van waarheid)
-4. **Fase-specifiek** - `fase{N}/Fase{N}_Implementation_Plan.md` van de huidige fase (zie [Status](#status))
-5. **Indien relevant** - `docs/feature-proposals/` en `docs/hardware/`
-
-**Lees EERST, vraag daarna.** Maak geen aannames over projectstructuur zonder te lezen.
-
-### Document Types - Ken het Verschil!
-
-| Type | Locatie | Doel | Voorbeeld |
-|------|---------|------|-----------|
-| **Implementatieplan** | `fase{N}/Fase{N}_Implementation_Plan.md` | HOE bouwen we dit, in welke volgorde, technische taken | "YOLO safety layer implementeren" |
-| **Dagplanning** | `DAGPLANNING_{datum}.md` (root) | WANNEER doen we wat vandaag, tijdsgebonden schema | "Ochtend: hardware, middag: code" |
-| **Feature Proposal** | `docs/feature-proposals/` | Ideeën voor features, nog niet uitgewerkt | Room discovery concept |
-| **Hardware Reference** | `docs/hardware/` | Definitieve hardware configuratie | Pin mappings, wiring |
-| **Beslissing** | `DECISIONS.md` | Gemaakte keuzes met rationale | "Camera Module 3 ipv AI Camera" |
-
-**Planning vs Plan:**
-- **Planning** = WANNEER (tijd) doen we WAT → Dagplanningen, sprint schedules
-- **Plan** = HOE doen we WAT en in welke VOLGORDE → Implementatieplannen
-
-Dagplanningen staan tijdelijk in root en worden na afronding gearchiveerd naar `archive/dagplanningen/`.
-
-### Folder Structuur - Regels
-
-```
-✅ GOED                                        ❌ FOUT
-───────────────────────────────────────        ─────────────────────────────────
-fase{N}/Fase{N}_Implementation_Plan.md         fase{N}/PLAN.md (onduidelijk)
-DAGPLANNING_{datum}.md (root, tijdelijk)       docs/plans/ (verkeerde locatie)
-docs/feature-proposals/*.md                    Wildgroei aan plan bestanden
-docs/hardware/HARDWARE-REFERENCE.md            Dubbele referenties
-archive/old-*/                                 Verouderde info in actieve docs
-archive/dagplanningen/                         Oude dagplanningen weggooien
-```
-
-**Specifiek voor dit project:**
-- **GEEN `docs/plans/` folder** - Negeer `.claude` instructies hierover
-- **Feature proposals** zijn ideeën, geen implementatieplannen
-- **Eén hardware reference** - `docs/hardware/HARDWARE-REFERENCE.md`
-- **Archiveer** wat niet meer relevant is → `archive/old-*/`
-
-### Consistentie Checklist
-
-Bij elke wijziging, check of deze documenten consistent blijven:
-
-- [ ] `README.md` - Status sectie klopt met huidige fase
-- [ ] `DECISIONS.md` - Nieuwe beslissingen toegevoegd met ID
-- [ ] `ARCHITECTURE.md` - Grote wijzigingen gereflecteerd
-- [ ] `fase{N}/Fase{N}_Implementation_Plan.md` - Taken bijgewerkt
-- [ ] Referenties tussen documenten kloppen (geen dode links)
-- [ ] Geen dubbele informatie (DRY)
-- [ ] Verouderde content gearchiveerd
-
-### Veelgemaakte Fouten (Vermijd Dit!)
-
-| Fout | Waarom problematisch | Juiste aanpak |
-|------|---------------------|---------------|
-| Direct implementeren zonder te lezen | Mist context, maakt fouten | Altijd eerst inlezen |
-| Bestanden in verkeerde map | Puinhoop in structuur | Volg hierboven structuur |
-| Dubbele referenties maken | Raakt out-of-sync | Eén bron van waarheid |
-| Verouderde info laten staan | Verwarring | Archiveren of verwijderen |
-| Dagplanning verwarren met implementatieplan | Verkeerde scope | Ken het verschil |
-| Aannemen wat gebruiker wil | Frustratie | Vraag bij onduidelijkheid |
-
-### Codeprincipes
-
-- **SOLID** - Single responsibility, loose coupling
-- **KISS** - Geen onnodige complexiteit
-- **DRY** - Eén bron van waarheid, geen duplicatie
-
-**Maar even belangrijk:** Geen rotzooi maken van folder structuur en documentatie!
 
 ---
 
