@@ -38,8 +38,19 @@ import pyaudio
 import onnxruntime as ort
 from openwakeword.model import Model as WakeWordModel
 
+# OLED Display (optioneel - werkt ook zonder)
+try:
+    from oled_display import OLEDDisplay
+    OLED_AVAILABLE = True
+except ImportError:
+    OLED_AVAILABLE = False
+    print("⚠️ OLED module niet gevonden, emoties alleen in console")
+
 # Global flag voor clean shutdown
 _shutdown_requested = False
+
+# Global OLED display
+_oled_display = None
 
 
 def _signal_handler(signum, frame):
@@ -282,9 +293,15 @@ async def handle_function_request(ws, payload: dict, conv_id: str) -> tuple[bool
         emotion = args.get("emotion", "neutral")
         emoji = EMOTION_EMOJIS.get(emotion, "🤖")
         print(f"  {emoji} Emotion: {emotion}")
+        # Toon op OLED display
+        if _oled_display and _oled_display.available:
+            _oled_display.show_emotion(emotion)
         result_text = f"Showing {emotion}"
     elif name == "go_to_sleep":
         print("  💤 Going to sleep...")
+        # Toon sleep gezicht op OLED
+        if _oled_display and _oled_display.available:
+            _oled_display.show_sleep()
         result_text = "Going to sleep"
         should_sleep = True
     else:
@@ -478,6 +495,15 @@ def main():
 
     enable_speaker()
 
+    # OLED display initialiseren
+    global _oled_display
+    if OLED_AVAILABLE:
+        _oled_display = OLEDDisplay()
+        if _oled_display.available:
+            print("✅ OLED display gevonden")
+        else:
+            print("⚠️ OLED niet beschikbaar")
+
     # Load models
     print("Loading models...")
     wake_model = WakeWordModel()
@@ -499,8 +525,10 @@ def main():
 
     print(f"✅ Mic: {MIC_SAMPLE_RATE}Hz, Speaker: {SPEAKER_SAMPLE_RATE}Hz")
 
-    # Startup sound
+    # Startup sound + OLED animatie
     play_startup_sound(p)
+    if _oled_display and _oled_display.available:
+        _oled_display.show_startup()
 
     # Wait for wake word
     if not wait_for_wake_word(p, wake_model):
@@ -576,6 +604,13 @@ def main():
         print("\n\n👋 Stopped")
 
     finally:
+        # OLED display clearen
+        if _oled_display and _oled_display.available:
+            try:
+                _oled_display.clear()
+            except Exception:
+                pass
+
         # Cleanup audio - met try/except om te zorgen dat termios altijd hersteld wordt
         if stream:
             try:

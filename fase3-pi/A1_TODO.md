@@ -1,7 +1,8 @@
-# A1: pi_conversation_v2 - Uitgebreide Debug Info
+# A1: Pi Conversation + OLED Display
 
 **Datum:** 2026-01-17
-**Doel:** Desktop-achtige conversatie ervaring op Pi met volledige debug output
+**Status:** ✅ COMPLEET
+**Doel:** Desktop-achtige conversatie ervaring op Pi met OLED emotie display
 
 ---
 
@@ -60,25 +61,34 @@ Een verbeterde versie van `pi_conversation.py` die:
 - [ ] Emotie changes detecteren
 - [ ] Mock take_photo trigger ("wat zie je?")
 
-### Stap 5: Remote Tool Pattern (D016) - NIEUW
+### Stap 5: Remote Tool Pattern (D016)
 - [x] Protocol uitgebreid met FUNCTION_REQUEST en FUNCTION_RESULT
 - [x] Tool base: is_remote property toegevoegd
 - [x] VisionTool: is_remote=True gezet
 - [x] Handler: remote tool logic geïmplementeerd
 - [x] Pi client: FUNCTION_REQUEST handler toegevoegd
 - [x] Docker containers rebuilt
-- [ ] **Rsync naar Pi** (wacht op Pi herstel na batterij crash)
-- [ ] **End-to-end test** take_photo via Pi
+- [x] Rsync naar Pi
+- [x] End-to-end test take_photo via Pi
 
-### Status: IMPLEMENTATIE COMPLEET, TEST PENDING (2026-01-17)
-Remote Tool Pattern (D016) volledig geïmplementeerd:
-- Desktop orchestrator stuurt nu FUNCTION_REQUEST voor remote tools
-- Pi client handelt FUNCTION_REQUEST af en stuurt FUNCTION_RESULT terug
-- Mock take_photo leest mock_photo.jpg en stuurt base64 naar orchestrator
+### Stap 6: OLED Emotie Display (Subfase 3b)
+- [x] OLED hardware aangesloten (I2C Pin op RobotHAT)
+- [x] I2C detectie succesvol (0x3C)
+- [x] luma.oled library geïnstalleerd
+- [x] test_oled.py - basis display test
+- [x] test_oled_emotions.py - emotie demo met animaties
+- [x] oled_display.py - herbruikbare OLEDDisplay module
+- [x] EmotionTool: is_remote=True toegevoegd
+- [x] pi_conversation_v3.py geïntegreerd met OLED
+- [x] End-to-end test: show_emotion function calls → OLED gezicht
 
-**Nog te doen:**
-1. Rsync naar Pi (na herstel van batterij crash)
-2. End-to-end test uitvoeren (zie Testplan in Fase3_Implementation_Plan.md)
+### Status: ✅ COMPLEET (2026-01-17)
+OLED emotie display volledig werkend:
+- 15 emoties met unieke gezichten (ogen, mond, wenkbrauwen)
+- Animaties bij happy/excited/love (knipperende ogen)
+- Startup animatie (ogen openen)
+- Sleep gezicht (Z z z)
+- Automatisch display wissen bij exit
 
 ---
 

@@ -22,6 +22,11 @@ class EmotionTool:
         return "show_emotion"
 
     @property
+    def is_remote(self) -> bool:
+        """OLED display zit op de Pi, dus dit is een remote tool."""
+        return True
+
+    @property
     def definition(self) -> dict:
         return {
             "type": "function",

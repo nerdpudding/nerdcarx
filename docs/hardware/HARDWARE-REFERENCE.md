@@ -51,9 +51,20 @@ Dit document bevat de volledige hardware configuratie voor NerdCarX, inclusief p
 
 | Component | Interface | Pin/Address | Status |
 |-----------|-----------|-------------|--------|
-| OLED WPI438 (SSD1306) | I2C | 0x3C | Aanwezig, niet aangesloten |
+| OLED WPI438 (SSD1306) | I2C | 0x3C | ✅ Geïnstalleerd & werkend |
 | 2x Grove LED (wit) | Digital | D0, D1 | **Besteld** |
 | Battery LEDs (2x) | Onboard | - | Geïnstalleerd |
+
+#### OLED Aansluiting Details
+
+| OLED Pin | Kabelkleur | RobotHAT I2C Pin |
+|----------|------------|------------------|
+| VCC | Rood | 3V3 |
+| GND | Grijs | GND |
+| SCL | Geel | SCL |
+| SDA | Groen | SDA |
+
+De OLED is aangesloten op de **I2C Pin** header van de RobotHAT v4 (tussen Motor 1 en Motor 2 poorten).
 
 ### I2C Componenten
 
@@ -61,7 +72,7 @@ Dit document bevat de volledige hardware configuratie voor NerdCarX, inclusief p
 |-----------|---------|--------|
 | TCA9548A I2C Hub | 0x70 | **Besteld** |
 | VL53L0X ToF (via hub) | 0x29 | **Besteld** |
-| SSD1306 OLED | 0x3C | Aanwezig |
+| SSD1306 OLED | 0x3C | ✅ Werkend |
 
 ### Audio Hardware
 

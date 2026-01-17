@@ -387,8 +387,12 @@ Zie [`fase1-desktop/README.md`](fase1-desktop/README.md) voor de oude conda-base
   - Ollama warmup bij startup (geen cold start failures)
   - go_to_sleep voice command (zeg "go to sleep")
   - Audio feedback: startup sound, wake word beep, sleep beeps
+- ✅ **Subfase 3b COMPLEET** - OLED emotie display (2026-01-17)
+  - OLED WPI438 (SSD1306) aangesloten en werkend
+  - 15 emoties met geanimeerde gezichten (ogen, mond, wenkbrauwen)
+  - show_emotion function calls → OLED display
+  - Startup animatie, sleep gezicht
 - ⏳ Camera Module 3 (verwacht 17 jan)
-- ⏳ OLED emotie display (Subfase 3b)
 - Zie [`fase3-pi/Fase3_Implementation_Plan.md`](fase3-pi/Fase3_Implementation_Plan.md) voor details
 
 **Fase 2 - Refactor + Docker:** ✅ AFGEROND (2026-01-17)
@@ -433,8 +437,8 @@ Zie [`fase1-desktop/README.md`](fase1-desktop/README.md) voor de oude conda-base
 - **2x Grove LED (wit)**: besteld - indicator/waarschuwingslichten
 - **Grove kabels**: besteld
 
-**Aanwezig (nog niet aangesloten):**
-- **OLED WPI438 (SSD1306)**: aanwezig - emotie display
+**Geïnstalleerd:**
+- **OLED WPI438 (SSD1306)**: ✅ werkend - emotie display op I2C @ 0x3C
 
 > **Hardware reference:** [`docs/hardware/HARDWARE-REFERENCE.md`](docs/hardware/HARDWARE-REFERENCE.md)
 

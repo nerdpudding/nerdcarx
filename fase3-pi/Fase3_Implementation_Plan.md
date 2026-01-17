@@ -14,8 +14,8 @@ Fase 3 is opgesplitst in subfases met duidelijke prioriteiten:
 | **3a** | Core audio flow (wake word → VAD → WebSocket → response) | - | ✅ DONE (2026-01-17) |
 | **3a+** | Remote function calls (D016 take_photo pattern) | - | ✅ DONE (2026-01-17) |
 | **3a++** | Debug & startup optimalisatie | - | ✅ DONE (2026-01-17) |
-| **3b** | OLED emotie display | **NU** | TODO |
-| **3c** | Hardware uitbreiding (ToF, LEDs, Camera 3) | Na hardware | 🔄 Camera 3 eerst |
+| **3b** | OLED emotie display | - | ✅ DONE (2026-01-17) |
+| **3c** | Hardware uitbreiding (ToF, LEDs, Camera 3) | **NU** | 🔄 Camera 3 eerst |
 
 ---
 
@@ -823,34 +823,35 @@ print(f"  🔊 Playing response ({len(chunks)} chunks)")
 
 ---
 
-## Subfase 3b: OLED Emotie Display (LATER)
+## Subfase 3b: OLED Emotie Display - ✅ COMPLEET (2026-01-17)
 
 ### Hardware
 - OLED WPI438 (SSD1306, 128x64, I2C @ 0x3C)
-- Aanwezig, nog niet aangesloten
+- ✅ Aangesloten op RobotHAT I2C Pin header
 
-### Implementatie
-1. OLED aansluiten op I2C bus
-2. `luma.oled` library installeren
-3. Emotie PNG assets maken (of tekst-based)
-4. `show_emotion` handler toevoegen aan Pi client
-5. Function calls van desktop afhandelen
+### Aansluiting
+| OLED Pin | Kabelkleur | RobotHAT |
+|----------|------------|----------|
+| VCC | Rood | 3V3 |
+| GND | Grijs | GND |
+| SCL | Geel | SCL |
+| SDA | Groen | SDA |
 
-### Voorbeeld
-```python
-# handlers/oled.py
-from luma.oled.device import ssd1306
-from luma.core.interface.serial import i2c
+### Geïmplementeerd
+- [x] OLED hardware aangesloten en getest (`i2cdetect -y 1` → 0x3C)
+- [x] `luma.oled` library geïnstalleerd
+- [x] `oled_display.py` - OLEDDisplay class met 15 emotie gezichten
+- [x] Animaties: knipperende ogen (happy/excited/love), startup, sleep
+- [x] `EmotionTool.is_remote = True` - function calls naar Pi
+- [x] `pi_conversation_v3.py` geïntegreerd met OLED
 
-class OLEDDisplay:
-    def __init__(self):
-        serial = i2c(port=1, address=0x3C)
-        self.device = ssd1306(serial)
+### Bestanden
+- `test_scripts/oled_display.py` - Herbruikbare OLEDDisplay module
+- `test_scripts/test_oled.py` - Basis test script
+- `test_scripts/test_oled_emotions.py` - Demo alle emoties
 
-    def show_emotion(self, emotion: str):
-        # Toon emotie op display
-        ...
-```
+### Emoties
+15 unieke gezichten: happy, sad, angry, surprised, neutral, love, tired, curious, excited, shy, confused, proud, worried, bored, thinking
 
 ---
 
@@ -953,7 +954,7 @@ python main.py
 - [ ] **Camera Module 3 (IMX708)** - Besteld
 
 ### I2C Devices
-- [ ] **OLED WPI438 (SSD1306)** - Aanwezig, nog niet aangesloten
+- [x] **OLED WPI438 (SSD1306)** - ✅ Geïnstalleerd & werkend
 - [ ] **TCA9548A I2C Hub** - Besteld
 - [ ] **2x VL53L0X ToF sensoren** - Besteld
 - [ ] Grove kabels - Besteld
@@ -992,6 +993,11 @@ python main.py
 | 2026-01-17 | **Audio feedback** - startup sound, wake word beep, sleep beeps |
 | 2026-01-17 | **System prompt** verbeterd - volwassen toon, striktere tool instructies |
 | 2026-01-17 | v1/v2 scripts gearchiveerd, v3 is nu de primaire versie |
+| 2026-01-17 | **Subfase 3b COMPLEET** - OLED emotie display werkend |
+| 2026-01-17 | OLED aangesloten (I2C Pin header), `i2cdetect` toont 0x3C |
+| 2026-01-17 | `oled_display.py` module met 15 emotie gezichten + animaties |
+| 2026-01-17 | `EmotionTool.is_remote = True` - function calls gaan nu naar Pi |
+| 2026-01-17 | End-to-end test: show_emotion → OLED gezicht verandert |
 
 ---
 
