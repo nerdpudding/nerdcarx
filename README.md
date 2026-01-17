@@ -255,8 +255,9 @@ python vad_conversation.py
   - WebSocket communicatie Pi ↔ Desktop orchestrator
   - TTS audio playback op I2S speaker
   - End-to-end test succesvol: 6 turns met function calls
+- ⏳ **Subfase 3a+** - Modulaire Pi client + Remote Tool Pattern ([D016](DECISIONS.md))
 - ⏳ Camera Module 3 (verwacht 17 jan)
-- ⏳ take_photo functie echt implementeren
+- ⏳ take_photo functie echt implementeren (Pi maakt foto, stuurt naar Desktop)
 - ⏳ OLED emotie display (Subfase 3b)
 - Zie [`fase3-pi/Fase3_Implementation_Plan.md`](fase3-pi/Fase3_Implementation_Plan.md) voor details
 

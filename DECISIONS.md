@@ -640,6 +640,99 @@ Silero VAD v4 via ONNX Runtime voor Voice Activity Detection op Pi.
 
 ---
 
+### D016: Remote Tool Pattern - Tools op Pi vs Desktop
+
+**Datum:** 2026-01-17
+**Fase:** 3
+**Status:** Gepland
+
+**Besluit:**
+Tools die hardware op de Pi aansturen worden gemarkeerd met een `is_remote` property. De orchestrator stuurt deze tools door naar de Pi voor uitvoering in plaats van ze lokaal uit te voeren.
+
+**Hoe het werkt:**
+
+```python
+# Elke tool class heeft een is_remote property
+class VisionTool:
+    @property
+    def is_remote(self) -> bool:
+        return True  # Camera zit op Pi
+
+class WebSearchTool:
+    @property
+    def is_remote(self) -> bool:
+        return False  # Draait op Desktop (default)
+```
+
+De handler checkt deze property:
+```python
+if tool.is_remote:
+    # Stuur FUNCTION_REQUEST naar Pi, wacht op FUNCTION_RESULT
+else:
+    # Voer lokaal uit op Desktop
+```
+
+**Tool categorisatie:**
+
+| Tool | is_remote | Reden |
+|------|-----------|-------|
+| `take_photo` | True | Camera zit op Pi |
+| `show_emotion` | True | OLED zit op Pi |
+| `drive` | True | Motoren zitten op Pi |
+| `set_leds` | True | LEDs zitten op Pi |
+| `web_search` | False | Internet via Desktop |
+| `get_weather` | False | API call via Desktop |
+| MCP tools | False | Desktop integraties |
+
+**Rationale:**
+
+1. **Single Responsibility (SOLID)**: Elke tool weet zelf waar hij hoort. De kennis "waar draait deze tool" zit bij de tool, niet ergens anders.
+
+2. **Open/Closed (SOLID)**: Nieuwe tools toevoegen vereist geen wijziging aan de handler code. Je maakt een nieuwe tool class met de juiste `is_remote` waarde.
+
+3. **Onderhoudbaar**: Als je een tool toevoegt, zet je `is_remote` erbij - één plek. Je kunt niet vergeten iets ergens anders te updaten.
+
+4. **Logisch**: `is_remote` is een eigenschap van de tool, niet configuratie. Een `take_photo` tool zal altijd op de Pi draaien (want daar zit de camera). Dat verander je niet via config.
+
+**Alternatieven overwogen:**
+
+| Alternatief | Reden afgewezen |
+|-------------|-----------------|
+| Centrale lijst in config.yml | Kennis over tool staat los van tool zelf. Makkelijk vergeten te updaten bij nieuwe tool. |
+| Aparte registries (PiToolRegistry, LocalToolRegistry) | Werkt ook, maar voegt complexiteit toe. Tools moeten dan in juiste registry geregistreerd worden - zelfde probleem als centrale lijst. |
+| Hardcoded lijst in handler | Niet configureerbaar, verspreid over code. |
+
+**WebSocket Protocol:**
+
+Nieuwe message types voor remote tool execution:
+
+```
+Desktop → Pi: FUNCTION_REQUEST
+{
+  "type": "function_request",
+  "payload": {
+    "name": "take_photo",
+    "arguments": {"question": "wat zie je?"},
+    "request_id": "uuid"
+  }
+}
+
+Pi → Desktop: FUNCTION_RESULT
+{
+  "type": "function_result",
+  "payload": {
+    "request_id": "uuid",
+    "name": "take_photo",
+    "result": "foto gemaakt",
+    "image_base64": "..."
+  }
+}
+```
+
+**Referentie:** [docs/patterns/remote-tool-pattern.md](docs/patterns/remote-tool-pattern.md)
+
+---
+
 ## Open vragen
 
 > Vragen die nog beantwoord moeten worden tijdens implementatie.
@@ -676,7 +769,8 @@ Silero VAD v4 via ONNX Runtime voor Voice Activity Detection op Pi.
 | D013 | Fase 2 Architectuur (Modulair + WebSocket) | 2026-01-16 | ✅ Geïmplementeerd |
 | D014 | Wake Word - OpenWakeWord v0.4.0 | 2026-01-16 | ✅ Geïmplementeerd |
 | D015 | Pi VAD - Silero VAD v4 ONNX | 2026-01-16 | ✅ Geïmplementeerd |
+| D016 | Remote Tool Pattern | 2026-01-17 | Gepland |
 
 ---
 
-*Laatst bijgewerkt: 2026-01-17 (Fase 3a compleet - Pi audio pipeline werkend)*
+*Laatst bijgewerkt: 2026-01-17 (D016 Remote Tool Pattern toegevoegd)*

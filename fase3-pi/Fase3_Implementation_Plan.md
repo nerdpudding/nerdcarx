@@ -12,8 +12,9 @@ Fase 3 is opgesplitst in subfases met duidelijke prioriteiten:
 | Subfase | Focus | Prioriteit | Status |
 |---------|-------|------------|--------|
 | **3a** | Core audio flow (wake word → VAD → WebSocket → response) | - | ✅ DONE (2026-01-17) |
-| **3b** | OLED emotie display | Morgen | TODO |
-| **3c** | Hardware uitbreiding (ToF, LEDs, Camera 3) | Morgen+ | 🔄 Camera 3 eerst |
+| **3a+** | Modulaire Pi client + Remote function calls (take_photo) | **NU** | TODO |
+| **3b** | OLED emotie display | Na 3a+ | TODO |
+| **3c** | Hardware uitbreiding (ToF, LEDs, Camera 3) | Na hardware | 🔄 Camera 3 eerst |
 
 ---
 
@@ -342,6 +343,174 @@ python main.py
 - [x] End-to-end latency < 5s (acceptabel) ✅ (2026-01-17)
 
 **Subfase 3a: ✅ COMPLEET** (2026-01-17)
+
+---
+
+## Subfase 3a+: Modulaire Pi Client + Remote Function Calls
+
+**Status:** TODO
+**Doel:** Modulaire code structuur + foto's maken op Pi en meesturen naar orchestrator
+
+### Probleem
+
+Huidige situatie:
+- `pi_conversation_v2.py` is één groot script (~800 regels)
+- Orchestrator voert `take_photo` lokaal uit met mock image op desktop
+- Pi krijgt `function_call` messages alleen als notificatie, niet voor execution
+
+Gewenste situatie:
+- Modulaire Pi client code (herbruikbaar, uitbreidbaar)
+- LLM roept `take_photo` aan → Pi maakt foto → stuurt naar orchestrator → LLM analyseert
+- Voorbereid op toekomstige tools: `show_emotion` (OLED), `drive`, `set_leds`
+
+### WebSocket Protocol Uitbreiding
+
+Nieuwe message types voor round-trip function execution:
+
+```
+Desktop → Pi:
+  FUNCTION_REQUEST: {
+    "type": "function_request",
+    "payload": {
+      "name": "take_photo",
+      "arguments": {"question": "wat zie je?"},
+      "request_id": "uuid"
+    }
+  }
+
+Pi → Desktop:
+  FUNCTION_RESULT: {
+    "type": "function_result",
+    "payload": {
+      "request_id": "uuid",
+      "name": "take_photo",
+      "result": "foto gemaakt",
+      "image_base64": "..."  # optioneel, voor vision
+    }
+  }
+```
+
+### Tool Categorisatie
+
+| Tool | Locatie | Reden |
+|------|---------|-------|
+| `take_photo` | Pi (remote) | Camera zit op Pi |
+| `show_emotion` | Pi (remote) | OLED zit op Pi |
+| Toekomst: `drive`, `set_leds` | Pi (remote) | Hardware op Pi |
+
+### Pi Client Package Structuur
+
+```
+fase3-pi/
+├── pi_client/                    # Python package
+│   ├── __init__.py
+│   ├── config.py                 # Configuratie (IP, device names)
+│   │
+│   ├── core/                     # Core componenten
+│   │   ├── __init__.py
+│   │   ├── client.py             # NerdCarXClient main class
+│   │   └── websocket.py          # WebSocket + FUNCTION_REQUEST handling
+│   │
+│   ├── audio/                    # Audio componenten
+│   │   ├── __init__.py
+│   │   ├── capture.py            # Mic capture + resampling
+│   │   ├── playback.py           # Speaker playback
+│   │   ├── vad.py                # Silero VAD wrapper
+│   │   └── wakeword.py           # OpenWakeWord wrapper
+│   │
+│   ├── tools/                    # Function call handlers
+│   │   ├── __init__.py
+│   │   ├── base.py               # PiTool protocol
+│   │   ├── registry.py           # PiToolRegistry
+│   │   ├── camera.py             # take_photo (mock → real)
+│   │   └── display.py            # show_emotion (console → OLED)
+│   │
+│   └── hardware/                 # Hardware abstracties (stub voor nu)
+│       ├── __init__.py
+│       ├── camera.py             # Camera capture (mock eerst)
+│       └── oled.py               # OLED control (stub)
+│
+├── run_conversation.py           # Entry point
+├── test_scripts/                 # Bestaande scripts (behouden)
+└── requirements.txt
+```
+
+### Orchestrator Aanpassingen
+
+**1. Protocol uitbreiden** (`websocket/protocol.py`):
+- `FUNCTION_REQUEST` message type
+- `FUNCTION_RESULT` message type
+- `FunctionRequestMessage` en `FunctionResultMessage` dataclasses
+
+**2. Tool marking** (`services/tools/base.py`):
+```python
+@property
+def is_remote(self) -> bool:
+    """True als tool op Pi moet worden uitgevoerd."""
+    return False  # Default: lokaal
+```
+
+**3. Vision tool remote maken** (`services/tools/vision.py`):
+```python
+@property
+def is_remote(self) -> bool:
+    return True  # Camera zit op Pi
+```
+
+**4. Handler aanpassen** (`websocket/handlers.py`):
+- In `_process_tool_calls()`: check `tool.is_remote`
+- Als remote: stuur `FUNCTION_REQUEST`, wacht op `FUNCTION_RESULT`
+- Gebruik result (incl. image_base64) in LLM chain
+
+### Pi Client Design Patterns
+
+**1. Protocol Pattern (spiegelt orchestrator)**:
+```python
+# pi_client/tools/base.py
+@runtime_checkable
+class PiTool(Protocol):
+    @property
+    def name(self) -> str: ...
+
+    async def execute(self, arguments: dict) -> dict:
+        """Returns dict met result + optioneel image_base64."""
+        ...
+```
+
+**2. Registry Pattern**:
+```python
+# pi_client/tools/registry.py
+class PiToolRegistry:
+    def register(self, tool: PiTool) -> None: ...
+    async def execute(self, name: str, args: dict) -> dict: ...
+```
+
+### Implementatie Stappen
+
+1. **Protocol uitbreiden** (orchestrator)
+2. **Tool is_remote property** (orchestrator)
+3. **Handler remote logic** (orchestrator)
+4. **Pi client package maken** (extractie uit v2)
+5. **Camera tool** (mock eerst, later picamera2)
+6. **Display tool** (console eerst, later luma.oled)
+7. **Entry point** (`run_conversation.py`)
+
+### Success Criteria
+
+- [ ] "Wat zie je?" → Pi stuurt mock foto → LLM beschrijft
+- [ ] Multi-turn conversatie zonder opnieuw wake word
+- [ ] Emotie changes zichtbaar in console
+- [ ] `test_scripts/pi_conversation_v2.py` blijft werken (backward compatible)
+
+### Toekomst Extensibility
+
+| Feature | Module |
+|---------|--------|
+| Echte camera | `hardware/camera.py` |
+| OLED display | `hardware/oled.py` |
+| Motor control | `hardware/motion.py` + `tools/motion.py` |
+| Object detection | `perception/yolo.py` |
+| SLAM | `navigation/slam.py` |
 
 ---
 

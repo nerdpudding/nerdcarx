@@ -486,6 +486,29 @@ User: "Je bent geweldig!" → LLM calls show_emotion("happy") → state changes 
 - `take_photo(question)` - Capture and analyze image
 - Supports both native JSON format and text-based fallback parsing
 
+**Remote vs Local Tools (Phase 3+):**
+
+Tools are categorized by where they execute:
+
+| Tool | Location | Why |
+|------|----------|-----|
+| `take_photo` | Pi (remote) | Camera hardware on Pi |
+| `show_emotion` | Pi (remote) | OLED display on Pi |
+| `drive`, `set_leds` | Pi (remote) | Motor/LED hardware on Pi |
+| `web_search` | Desktop (local) | Internet access on Desktop |
+| MCP tools | Desktop (local) | Desktop integrations |
+
+Each tool has an `is_remote` property. The handler sends remote tools to the Pi via WebSocket and waits for the result:
+
+```
+LLM calls take_photo → Handler checks is_remote=True →
+Send FUNCTION_REQUEST to Pi → Pi takes photo →
+Pi sends FUNCTION_RESULT with image → Handler continues
+```
+
+> **Decision:** [D016 Remote Tool Pattern](DECISIONS.md#d016-remote-tool-pattern---tools-op-pi-vs-desktop)
+> **Pattern details:** [docs/patterns/remote-tool-pattern.md](docs/patterns/remote-tool-pattern.md)
+
 **Configuration:**
 - Single `config.yml` for all settings
 - Hot-reload via `/reload-config` endpoint
