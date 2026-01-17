@@ -263,3 +263,33 @@ websocket:
 ### Ollama timeout
 - Check of Ollama draait: `curl localhost:11434/api/tags`
 - Model geladen: `ollama list`
+
+## Known Issues / Verbeterpunten
+
+### TTS hercompileert bij elke restart
+**Probleem:** Fish Audio TTS compileert Cython extensions bij elke `docker compose up`, ook al is er een cache volume. Dit kost ~2-3 minuten extra.
+
+**Oorzaak:** Cache volume bewaart alleen gedownloade models, niet compiled code.
+
+**Oplossing (TODO):** Custom Dockerfile met pre-compiled wheels, of multi-stage build die compilation cached.
+
+### Ollama cold start failures
+**Probleem:** Eerste request na startup faalt soms omdat model nog niet volledig in VRAM geladen is.
+
+**Workaround:** Ollama container restarten, of handmatig warm maken met een test request.
+
+**Oplossing (TODO):** Health check endpoint die model warm maakt bij startup, of startup probe in docker-compose.
+
+### Debug architectuur verbeteren
+**Huidige situatie:** Debug info (timing STT/LLM/TTS) wordt op de Pi getoond, maar de Pi weet deze waardes niet (altijd 0ms).
+
+**Gewenste situatie:** Orchestrator-centric debug logging:
+- **Desktop debug script (optioneel):** Toont per turn:
+  - Timestamp audio ontvangen
+  - STT transcriptie + timing
+  - LLM response + function calls + timing
+  - TTS timing
+  - Teruggestuurd naar Pi
+- **Pi logs simpeler:** Wake word, VAD, function call executions, audio playback
+
+**Oplossing (TODO):** Debug WebSocket endpoint of log stream van orchestrator naar optioneel desktop script.

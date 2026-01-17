@@ -1,6 +1,8 @@
 """WebSocket message handlers."""
+import asyncio
 import base64
 import json
+import uuid
 from typing import Optional
 
 from .protocol import (
@@ -9,6 +11,7 @@ from .protocol import (
     ResponseMessage,
     AudioChunkMessage,
     FunctionCallMessage,
+    FunctionRequestMessage,
     ErrorMessage,
 )
 from .manager import ConnectionManager
@@ -16,6 +19,9 @@ from ..config import get_config
 from ..models import EmotionManager, ConversationManager, FunctionCall
 from ..services import OllamaLLM, VoxtralSTT, FishAudioTTS, ToolRegistry
 from ..utils import split_into_sentences
+
+# Timeout voor remote tool execution (seconden)
+REMOTE_TOOL_TIMEOUT = 30.0
 
 
 class MessageHandler:
@@ -36,6 +42,9 @@ class MessageHandler:
         self.emotions = emotion_manager
         self.conversations = conversation_manager
         self.tools = tool_registry
+
+        # Pending remote tool requests: request_id -> (event, result_dict)
+        self._pending_requests: dict[str, tuple[asyncio.Event, dict]] = {}
 
     async def handle_message(self, client_id: str, raw_data: str) -> None:
         """
@@ -61,6 +70,7 @@ class MessageHandler:
             MessageType.WAKE_WORD: self._handle_wake_word,
             MessageType.SENSOR_UPDATE: self._handle_sensor_update,
             MessageType.HEARTBEAT: self._handle_heartbeat,
+            MessageType.FUNCTION_RESULT: self._handle_function_result,
         }
 
         handler = handlers.get(message.type)
@@ -143,7 +153,7 @@ class MessageHandler:
             # Process tool calls
             if response.tool_calls:
                 content, function_calls = await self._process_tool_calls(
-                    llm, messages, response.tool_calls, conv_id
+                    llm, messages, response.tool_calls, conv_id, client_id
                 )
 
             conv.add_assistant_message(content)
@@ -220,9 +230,15 @@ class MessageHandler:
         llm: OllamaLLM,
         messages: list[dict],
         tool_calls: list[dict],
-        conv_id: str
+        conv_id: str,
+        client_id: str
     ) -> tuple[str, list[FunctionCall]]:
-        """Process tool calls recursief."""
+        """
+        Process tool calls recursief.
+
+        Remote tools (is_remote=True) worden naar de Pi gestuurd.
+        Zie D016 in DECISIONS.md.
+        """
         all_calls = []
 
         messages.append({
@@ -244,7 +260,22 @@ class MessageHandler:
 
             all_calls.append(FunctionCall(name=name, arguments=args))
 
-            result = await self.tools.execute(name, args)
+            # Check of tool remote is
+            tool = self.tools.get(name)
+            is_remote = getattr(tool, 'is_remote', False) if tool else False
+
+            if is_remote:
+                # Remote tool: stuur naar Pi en wacht op resultaat
+                result, context = await self._execute_remote_tool(
+                    client_id, conv_id, name, args
+                )
+                # Voor vision tools: voer analyse uit met de ontvangen image
+                if tool and context.get("image_base64"):
+                    result = await tool.execute(args, context)
+            else:
+                # Lokale tool: direct uitvoeren
+                result = await self.tools.execute(name, args)
+
             messages.append({"role": "tool", "content": result})
 
         # Get final response
@@ -252,11 +283,87 @@ class MessageHandler:
 
         if response.tool_calls:
             more_content, more_calls = await self._process_tool_calls(
-                llm, messages, response.tool_calls, conv_id
+                llm, messages, response.tool_calls, conv_id, client_id
             )
             return more_content, all_calls + more_calls
 
         return response.content, all_calls
+
+    async def _execute_remote_tool(
+        self,
+        client_id: str,
+        conv_id: str,
+        name: str,
+        args: dict
+    ) -> tuple[str, dict]:
+        """
+        Voer remote tool uit op Pi.
+
+        1. Stuur FUNCTION_REQUEST naar Pi
+        2. Wacht op FUNCTION_RESULT
+        3. Return result en context (evt. met image_base64)
+        """
+        request_id = str(uuid.uuid4())
+
+        # Maak event om op te wachten
+        event = asyncio.Event()
+        result_holder: dict = {}
+        self._pending_requests[request_id] = (event, result_holder)
+
+        try:
+            # Stuur request naar Pi
+            request_msg = FunctionRequestMessage.create(
+                name=name,
+                arguments=args,
+                request_id=request_id,
+                conversation_id=conv_id
+            )
+            await self.connections.send_json(client_id, request_msg.to_dict())
+
+            # Wacht op result met timeout
+            try:
+                await asyncio.wait_for(event.wait(), timeout=REMOTE_TOOL_TIMEOUT)
+            except asyncio.TimeoutError:
+                return f"Remote tool '{name}' timeout na {REMOTE_TOOL_TIMEOUT}s", {}
+
+            # Haal resultaat op
+            result = result_holder.get("result", "")
+            context = {}
+            if result_holder.get("image_base64"):
+                context["image_base64"] = result_holder["image_base64"]
+            if result_holder.get("error"):
+                result = f"Remote tool error: {result_holder['error']}"
+
+            return result, context
+
+        finally:
+            # Cleanup
+            self._pending_requests.pop(request_id, None)
+
+    async def _handle_function_result(self, client_id: str, message: Message) -> None:
+        """
+        Handle FUNCTION_RESULT van Pi.
+
+        Unblocks de wachtende _execute_remote_tool call.
+        """
+        payload = message.payload
+        request_id = payload.get("request_id", "")
+
+        if request_id not in self._pending_requests:
+            # Onbekende request_id - negeer (misschien al getimed out)
+            return
+
+        event, result_holder = self._pending_requests[request_id]
+
+        # Kopieer resultaat
+        result_holder["result"] = payload.get("result", "")
+        if payload.get("image_base64"):
+            result_holder["image_base64"] = payload["image_base64"]
+        if payload.get("error"):
+            result_holder["error"] = payload["error"]
+
+        # Signal dat resultaat binnen is
+        event.set()
 
     async def _handle_wake_word(self, client_id: str, message: Message) -> None:
         """Handle wake word detection."""

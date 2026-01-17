@@ -10,7 +10,11 @@ class Tool(Protocol):
     Elke tool heeft:
     - name: Unieke identifier
     - definition: OpenAI-compatible tool definition
+    - is_remote: Of tool op Pi moet draaien (default: False)
     - execute: Async execution method
+
+    Remote tools (is_remote=True) worden via WebSocket naar de Pi gestuurd.
+    Zie D016 in DECISIONS.md voor rationale.
     """
 
     @property
@@ -34,6 +38,22 @@ class Tool(Protocol):
         }
         """
         ...
+
+    @property
+    def is_remote(self) -> bool:
+        """
+        True als tool op de Pi moet worden uitgevoerd.
+
+        Remote tools:
+        - take_photo: Camera zit op Pi
+        - show_emotion: OLED zit op Pi
+        - drive, set_leds: Hardware op Pi
+
+        Local tools (default):
+        - web_search: Internet via Desktop
+        - MCP tools: Desktop integraties
+        """
+        return False  # Default: lokaal uitvoeren
 
     async def execute(self, arguments: dict, context: Optional[dict] = None) -> str:
         """

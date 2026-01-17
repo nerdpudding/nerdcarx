@@ -102,12 +102,48 @@ async def websocket_endpoint(
     )
 
     try:
-        while True:
-            # Receive message
-            data = await websocket.receive_text()
+        # Gebruik een queue om berichten te bufferen
+        # Dit voorkomt deadlock bij remote tool calls (D016)
+        message_queue: asyncio.Queue = asyncio.Queue()
 
-            # Handle message
-            await message_handler.handle_message(client_id, data)
+        async def receive_loop():
+            """Ontvangt berichten en zet ze in de queue."""
+            try:
+                while True:
+                    data = await websocket.receive_text()
+                    await message_queue.put(data)
+            except WebSocketDisconnect:
+                await message_queue.put(None)  # Signal to stop
+
+        async def process_loop():
+            """Verwerkt berichten uit de queue."""
+            while True:
+                data = await message_queue.get()
+                if data is None:
+                    break
+                # Spawn message handling als aparte task
+                # zodat we direct door kunnen met ontvangen
+                asyncio.create_task(
+                    message_handler.handle_message(client_id, data)
+                )
+
+        # Run receive en process parallel
+        receive_task = asyncio.create_task(receive_loop())
+        process_task = asyncio.create_task(process_loop())
+
+        # Wacht tot een van beide stopt
+        done, pending = await asyncio.wait(
+            [receive_task, process_task],
+            return_when=asyncio.FIRST_COMPLETED
+        )
+
+        # Cancel pending tasks
+        for task in pending:
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
 
     except WebSocketDisconnect:
         pass

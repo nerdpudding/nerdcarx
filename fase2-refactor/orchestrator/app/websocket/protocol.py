@@ -13,11 +13,13 @@ class MessageType(str, Enum):
     WAKE_WORD = "wake_word"             # Wake word gedetecteerd
     SENSOR_UPDATE = "sensor_update"     # Sensor data
     HEARTBEAT = "heartbeat"             # Keep-alive
+    FUNCTION_RESULT = "function_result" # Resultaat van remote tool executie
 
     # Desktop → Pi
     RESPONSE = "response"               # LLM response tekst
     AUDIO_CHUNK = "audio_chunk"         # TTS audio chunk
-    FUNCTION_CALL = "function_call"     # Tool execution request
+    FUNCTION_CALL = "function_call"     # Tool execution notification (info only)
+    FUNCTION_REQUEST = "function_request"  # Remote tool execution request
     ERROR = "error"                     # Foutmelding
 
 
@@ -173,3 +175,95 @@ class ErrorMessage(Message):
         if code:
             payload["code"] = code
         return cls(conversation_id=conversation_id, payload=payload)
+
+
+@dataclass
+class FunctionRequestMessage(Message):
+    """
+    Remote tool execution request naar Pi.
+
+    Gebruikt voor tools met is_remote=True (bijv. take_photo, show_emotion).
+    De Pi voert de tool uit en stuurt een FunctionResultMessage terug.
+    """
+    type: MessageType = field(default=MessageType.FUNCTION_REQUEST, init=False)
+
+    @classmethod
+    def create(
+        cls,
+        name: str,
+        arguments: dict,
+        request_id: str,
+        conversation_id: str = "default"
+    ) -> "FunctionRequestMessage":
+        return cls(
+            conversation_id=conversation_id,
+            payload={
+                "name": name,
+                "arguments": arguments,
+                "request_id": request_id
+            }
+        )
+
+    @property
+    def name(self) -> str:
+        return self.payload.get("name", "")
+
+    @property
+    def arguments(self) -> dict:
+        return self.payload.get("arguments", {})
+
+    @property
+    def request_id(self) -> str:
+        return self.payload.get("request_id", "")
+
+
+@dataclass
+class FunctionResultMessage(Message):
+    """
+    Remote tool execution result van Pi.
+
+    Bevat het resultaat van een tool die op de Pi is uitgevoerd.
+    Voor vision tools bevat dit ook image_base64.
+    """
+    type: MessageType = field(default=MessageType.FUNCTION_RESULT, init=False)
+
+    @classmethod
+    def create(
+        cls,
+        name: str,
+        request_id: str,
+        result: str,
+        conversation_id: str = "default",
+        image_base64: Optional[str] = None,
+        error: Optional[str] = None
+    ) -> "FunctionResultMessage":
+        payload = {
+            "name": name,
+            "request_id": request_id,
+            "result": result
+        }
+        if image_base64:
+            payload["image_base64"] = image_base64
+        if error:
+            payload["error"] = error
+        return cls(conversation_id=conversation_id, payload=payload)
+
+    @property
+    def name(self) -> str:
+        return self.payload.get("name", "")
+
+    @property
+    def request_id(self) -> str:
+        return self.payload.get("request_id", "")
+
+    @property
+    def result(self) -> str:
+        return self.payload.get("result", "")
+
+    @property
+    def image_base64(self) -> Optional[str]:
+        return self.payload.get("image_base64")
+
+    @property
+    def error(self) -> Optional[str]:
+        return self.payload.get("error")

@@ -10,9 +10,11 @@ class VisionTool:
     """
     take_photo tool - maakt foto en analyseert deze.
 
-    Ondersteunt:
-    - Mock image voor desktop testing
-    - Pi camera endpoint (toekomst)
+    Dit is een remote tool (is_remote=True):
+    - De Pi maakt de foto en stuurt deze via FUNCTION_RESULT
+    - De orchestrator analyseert de foto met de LLM
+
+    Zie D016 in DECISIONS.md voor rationale.
     """
 
     def __init__(
@@ -30,6 +32,11 @@ class VisionTool:
     @property
     def name(self) -> str:
         return "take_photo"
+
+    @property
+    def is_remote(self) -> bool:
+        """Camera zit op de Pi, dus foto maken is remote."""
+        return True
 
     @property
     def definition(self) -> dict:
@@ -77,19 +84,30 @@ class VisionTool:
 
     async def execute(self, arguments: dict, context: Optional[dict] = None) -> str:
         """
-        Maak foto en analyseer.
+        Analyseer foto.
+
+        Voor remote execution:
+        - De Pi maakt de foto en stuurt image_base64 via context
+        - Deze method doet alleen de LLM analyse
 
         Args:
             arguments: {"question": "..."}
-            context: Optionele context met llm_client
+            context: {"image_base64": "..."} van Pi FUNCTION_RESULT
 
         Returns:
             Analyse resultaat
         """
         question = arguments.get("question", "Beschrijf wat je ziet.")
 
-        # Haal image
-        image_base64 = await self._get_image()
+        # Image komt van Pi via context (remote) of fallback naar lokaal
+        image_base64 = None
+        if context and context.get("image_base64"):
+            # Remote: image van Pi
+            image_base64 = context["image_base64"]
+        else:
+            # Fallback: lokale mock (voor desktop testing zonder Pi)
+            image_base64 = await self._get_image()
+
         if not image_base64:
             return "Geen camera beschikbaar - kan geen foto maken."
 

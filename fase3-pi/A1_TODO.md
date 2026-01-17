@@ -60,8 +60,25 @@ Een verbeterde versie van `pi_conversation.py` die:
 - [ ] Emotie changes detecteren
 - [ ] Mock take_photo trigger ("wat zie je?")
 
-### Status: WERKEND (2026-01-17)
-Wake word + VAD + WebSocket flow werkt. Nog te testen: multi-turn, emoties, mock foto.
+### Stap 5: Remote Tool Pattern (D016) - NIEUW
+- [x] Protocol uitgebreid met FUNCTION_REQUEST en FUNCTION_RESULT
+- [x] Tool base: is_remote property toegevoegd
+- [x] VisionTool: is_remote=True gezet
+- [x] Handler: remote tool logic geïmplementeerd
+- [x] Pi client: FUNCTION_REQUEST handler toegevoegd
+- [x] Docker containers rebuilt
+- [ ] **Rsync naar Pi** (wacht op Pi herstel na batterij crash)
+- [ ] **End-to-end test** take_photo via Pi
+
+### Status: IMPLEMENTATIE COMPLEET, TEST PENDING (2026-01-17)
+Remote Tool Pattern (D016) volledig geïmplementeerd:
+- Desktop orchestrator stuurt nu FUNCTION_REQUEST voor remote tools
+- Pi client handelt FUNCTION_REQUEST af en stuurt FUNCTION_RESULT terug
+- Mock take_photo leest mock_photo.jpg en stuurt base64 naar orchestrator
+
+**Nog te doen:**
+1. Rsync naar Pi (na herstel van batterij crash)
+2. End-to-end test uitvoeren (zie Testplan in Fase3_Implementation_Plan.md)
 
 ---
 
@@ -140,6 +157,9 @@ Wanneer LLM `show_emotion` aanroept:
 | 2026-01-17 | Sample rate resampling toegevoegd (44.1kHz → 16kHz) |
 | 2026-01-17 | Wake word + VAD werkend met resampling |
 | 2026-01-17 | Emotion type bug gefixed, A1 volledig werkend |
+| 2026-01-17 | **D016 Remote Tool Pattern geïmplementeerd** (protocol, handler, Pi client) |
+| 2026-01-17 | Deadlock fix in websocket route (parallel receive loop) |
+| 2026-01-17 | **END-TO-END TEST GESLAAGD** - take_photo werkt volledig |
 
 ---
 

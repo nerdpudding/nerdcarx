@@ -502,6 +502,93 @@ class PiToolRegistry:
 - [ ] Emotie changes zichtbaar in console
 - [ ] `test_scripts/pi_conversation_v2.py` blijft werken (backward compatible)
 
+### Deployment Commands
+
+**Rsync naar Pi (vanaf desktop):**
+```bash
+# Sync fase3-pi folder naar Pi
+rsync -avz --exclude '__pycache__' --exclude '*.pyc' \
+  /home/rvanpolen/vibe_claude_kilo_cli_exp/nerdcarx/fase3-pi/ \
+  rvanpolen@192.168.1.71:~/fase3-pi/
+```
+
+**Docker rebuilden (indien orchestrator gewijzigd):**
+```bash
+cd /home/rvanpolen/vibe_claude_kilo_cli_exp/nerdcarx/fase2-refactor
+docker compose build --no-cache orchestrator
+docker compose up -d
+```
+
+### Testplan Subfase 3a+
+
+#### Voorbereiding
+
+1. **Desktop:** Controleer dat alle containers draaien
+   ```bash
+   docker ps  # Moet 4 containers tonen: orchestrator, voxtral, tts, ollama
+   curl http://localhost:8200/health  # Moet {"status": "healthy"} geven
+   ```
+
+2. **Pi:** Start het test script
+   ```bash
+   ssh rvanpolen@192.168.1.71
+   conda activate nerdcarx
+   cd ~/fase3-pi/test_scripts
+   python pi_conversation_v2.py
+   ```
+
+#### Test 1: Wake Word + Basis Conversatie
+
+| Stap | Actie | Verwacht Resultaat |
+|------|-------|-------------------|
+| 1 | Zeg "Hey Jarvis" | `✅ Wake word detected!` in console |
+| 2 | Zeg "Hallo, hoe gaat het?" | Transcriptie + response + audio playback |
+| 3 | Druk Ctrl+C | Keyboard werkt nog in terminal |
+
+**✅ PASS als:** Wake word werkt, response komt, terminal blijft bruikbaar na Ctrl+C
+
+#### Test 2: Multi-turn Conversatie
+
+| Stap | Actie | Verwacht Resultaat |
+|------|-------|-------------------|
+| 1 | Start script, zeg wake word | Wake word detected |
+| 2 | Stel een vraag | Response komt |
+| 3 | Wacht 2 seconden, stel vervolgvraag | Response ZONDER opnieuw wake word |
+| 4 | Herhaal stap 3 nog 2x | Blijft werken |
+
+**✅ PASS als:** Meerdere turns werken zonder steeds wake word te hoeven zeggen
+
+#### Test 3: Remote Tool - take_photo (NIEUW)
+
+| Stap | Actie | Verwacht Resultaat |
+|------|-------|-------------------|
+| 1 | Zeg "Wat zie je?" of "Beschrijf wat je ziet" | Console toont: |
+| | | `🔧 [FUNCTION_REQUEST] take_photo(...)` |
+| | | `📷 [MOCK] Lezen van mock_photo.jpg` |
+| | | `✅ [FUNCTION_RESULT] Sent for take_photo` |
+| 2 | Wacht op response | LLM beschrijft de mock foto |
+
+**✅ PASS als:** FUNCTION_REQUEST/RESULT cycle werkt en LLM beschrijft de foto
+**❌ FAIL als:** Timeout, geen FUNCTION_REQUEST, of error
+
+#### Test 4: Emotie Changes
+
+| Stap | Actie | Verwacht Resultaat |
+|------|-------|-------------------|
+| 1 | Zeg iets negatiefs: "Je bent stom" | Emotie verandert (bijv. sad) |
+| 2 | Zeg iets positiefs: "Grapje, je bent geweldig!" | Emotie verandert (bijv. happy) |
+
+**✅ PASS als:** Emotie emoji's veranderen in console output
+
+#### Troubleshooting
+
+| Probleem | Mogelijke Oorzaak | Oplossing |
+|----------|-------------------|-----------|
+| Geen wake word detectie | Mic volume te laag | `alsamixer -c 2`, verhoog capture |
+| Timeout bij FUNCTION_REQUEST | Orchestrator crashed | Check `docker logs nerdcarx-orchestrator` |
+| Keyboard werkt niet na Ctrl+C | Terminal settings niet hersteld | Zou niet meer moeten (fix in v2) |
+| "Mock foto: geen camera beschikbaar" | mock_photo.jpg ontbreekt | Check `ls ~/fase3-pi/test_scripts/mock_photo.jpg` |
+
 ### Toekomst Extensibility
 
 | Feature | Module |

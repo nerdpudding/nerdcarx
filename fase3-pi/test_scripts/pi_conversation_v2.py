@@ -263,12 +263,80 @@ def handle_mock_show_emotion(arguments: dict, current_emotion: str) -> str:
 # WEBSOCKET CLIENT
 # ============================================================================
 
+def execute_mock_take_photo() -> tuple[str, str]:
+    """
+    Mock take_photo execution.
+
+    Returns:
+        tuple: (result_text, image_base64 or empty string)
+    """
+    # Check for mock photo file
+    mock_photo_path = Path(__file__).parent / "mock_photo.jpg"
+    if mock_photo_path.exists():
+        print("   📷 [MOCK] Lezen van mock_photo.jpg")
+        with open(mock_photo_path, "rb") as f:
+            image_base64 = base64.b64encode(f.read()).decode('utf-8')
+        return "Foto gemaakt (mock)", image_base64
+    else:
+        print("   📷 [MOCK] Geen mock_photo.jpg gevonden, gebruik placeholder")
+        return "Mock foto: geen camera beschikbaar", ""
+
+
+async def handle_function_request(ws, payload: dict, conversation_id: str) -> None:
+    """
+    Handle FUNCTION_REQUEST from orchestrator.
+
+    Executes the tool locally and sends FUNCTION_RESULT back.
+    """
+    name = payload.get("name", "")
+    arguments = payload.get("arguments", {})
+    request_id = payload.get("request_id", "")
+
+    print(f"   🔧 [FUNCTION_REQUEST] {name}({arguments})")
+
+    result_text = ""
+    image_base64 = ""
+    error = ""
+
+    if name == "take_photo":
+        result_text, image_base64 = execute_mock_take_photo()
+    elif name == "show_emotion":
+        emotion = arguments.get("emotion", "neutral")
+        emoji = EMOTION_EMOJIS.get(emotion, "🤖")
+        print(f"   {emoji} [MOCK] show_emotion: {emotion}")
+        result_text = f"Emotie '{emotion}' wordt getoond"
+    else:
+        error = f"Onbekende tool: {name}"
+        result_text = error
+
+    # Send FUNCTION_RESULT back
+    result_msg = {
+        "type": "function_result",
+        "conversation_id": conversation_id,
+        "timestamp": time.time(),
+        "payload": {
+            "name": name,
+            "request_id": request_id,
+            "result": result_text
+        }
+    }
+    if image_base64:
+        result_msg["payload"]["image_base64"] = image_base64
+    if error:
+        result_msg["payload"]["error"] = error
+
+    await ws.send(json.dumps(result_msg))
+    print(f"   ✅ [FUNCTION_RESULT] Sent for {name}")
+
+
 async def send_audio_and_receive(
     audio_bytes: bytes,
     conversation_id: str = "pi-session"
 ) -> dict:
     """
     Send audio via WebSocket, receive response with full metadata.
+
+    Handles FUNCTION_REQUEST for remote tool execution (D016 Remote Tool Pattern).
 
     Returns dict with:
         - response_text: LLM response text
@@ -335,6 +403,19 @@ async def send_audio_and_receive(
                         })
                         if payload.get("is_last", False):
                             break
+
+                    elif msg_type == "function_request":
+                        # Remote tool execution request (D016)
+                        payload = msg.get("payload", {})
+                        await handle_function_request(ws, payload, conversation_id)
+                        # Don't break - continue waiting for response/audio
+
+                    elif msg_type == "function_call":
+                        # Legacy: info-only notification (fire and forget)
+                        payload = msg.get("payload", {})
+                        name = payload.get("name", "")
+                        args = payload.get("arguments", {})
+                        print(f"   ℹ️  [FUNCTION_CALL] {name}({args})")
 
                     elif msg_type == "error":
                         error = msg.get("payload", {}).get("error", "Unknown error")
