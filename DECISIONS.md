@@ -598,7 +598,7 @@ OpenWakeWord v0.4.0 met `hey_jarvis` pre-trained model voor wake word detectie o
 
 **Test resultaten:** Scores 0.85-1.00 bij duidelijke "hey jarvis"
 
-**Referentie:** [fase3-pi/PLAN.md](fase3-pi/PLAN.md)
+**Referentie:** [fase3-pi/Fase3_Implementation_Plan.md](fase3-pi/Fase3_Implementation_Plan.md)
 
 ---
 
@@ -636,7 +636,7 @@ Silero VAD v4 via ONNX Runtime voor Voice Activity Detection op Pi.
 | WebRTC VAD | Minder accuraat |
 | speech_recognition energy-based | Minder robuust in noisy environments |
 
-**Referentie:** [fase3-pi/PLAN.md](fase3-pi/PLAN.md)
+**Referentie:** [fase3-pi/Fase3_Implementation_Plan.md](fase3-pi/Fase3_Implementation_Plan.md)
 
 ---
 

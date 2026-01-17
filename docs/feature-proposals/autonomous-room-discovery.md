@@ -183,5 +183,5 @@ Zie [HARDWARE-REFERENCE.md](../hardware/HARDWARE-REFERENCE.md) voor de definitie
 
 - [4-layer-perception-architecture.md](4-layer-perception-architecture.md) - Architectuur waar deze feature in past
 - [HARDWARE-REFERENCE.md](../hardware/HARDWARE-REFERENCE.md) - Definitieve hardware
-- [fase4-autonomie/PLAN.md](../../fase4-autonomie/PLAN.md) - Fase waar dit wordt geimplementeerd
+- [fase4-autonomie/Fase4_Implementation_Plan.md](../../fase4-autonomie/Fase4_Implementation_Plan.md) - Fase waar dit wordt geimplementeerd
 - [DECISIONS.md](../../DECISIONS.md) - D010 (Camera), D011 (4-laags architectuur)

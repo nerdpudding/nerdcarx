@@ -610,12 +610,12 @@ Connect real hardware - PiCar-X robot, wake word detection, audio pipeline, and 
 - ⏳ Real take_photo implementation for LLM vision
 - ⏳ OLED emotion display
 
-**Details:** [fase3-pi/PLAN.md](fase3-pi/PLAN.md)
+**Details:** [fase3-pi/Fase3_Implementation_Plan.md](fase3-pi/Fase3_Implementation_Plan.md)
 
 ### Phase 4: Autonomy & Personality
 Add "life" to the robot - idle behaviors (blinking, looking around), proactive conversations, long-term memory, obstacle avoidance, consistent personality.
 
-**Details:** [fase4-autonomie/PLAN.md](fase4-autonomie/PLAN.md)
+**Details:** [fase4-autonomie/Fase4_Implementation_Plan.md](fase4-autonomie/Fase4_Implementation_Plan.md)
 
 ---
 
@@ -704,7 +704,7 @@ The architecture is designed (Phase 2 refactor) to easily swap between local and
 |----------|----------|
 | Main README | [README.md](README.md) |
 | All decisions with rationale | [DECISIONS.md](DECISIONS.md) |
-| **Phase 3 (current)** | [fase3-pi/PLAN.md](fase3-pi/PLAN.md) |
+| **Phase 3 (current)** | [fase3-pi/Fase3_Implementation_Plan.md](fase3-pi/Fase3_Implementation_Plan.md) |
 | Phase 2 config | [fase2-refactor/config.yml](fase2-refactor/config.yml) |
 | Phase 1 (legacy) | [fase1-desktop/README.md](fase1-desktop/README.md) |
 | Original concept | [archive/0.concept/](archive/0.concept/) |

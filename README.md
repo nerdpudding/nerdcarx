@@ -73,7 +73,7 @@ Bij start van een sessie of na compactie, lees in deze volgorde:
 1. **`README.md`** - Dit bestand, overzicht en huidige status
 2. **`ARCHITECTURE.md`** - Technische architectuur en design rationale
 3. **`DECISIONS.md`** - Alle beslissingen (bron van waarheid)
-4. **Fase-specifiek** - `fase{N}/PLAN.md` van de huidige fase (zie [Status](#status))
+4. **Fase-specifiek** - `fase{N}/Fase{N}_Implementation_Plan.md` van de huidige fase (zie [Status](#status))
 5. **Indien relevant** - `docs/feature-proposals/` en `docs/hardware/`
 
 **Lees EERST, vraag daarna.** Maak geen aannames over projectstructuur zonder te lezen.
@@ -82,23 +82,29 @@ Bij start van een sessie of na compactie, lees in deze volgorde:
 
 | Type | Locatie | Doel | Voorbeeld |
 |------|---------|------|-----------|
-| **Implementatieplan** | `fase{N}/PLAN.md` | Wat te bouwen in een fase, technische taken | "YOLO safety layer implementeren" |
-| **Dagplanning** | Niet in repo | Tijdelijk schema wat gebruiker vandaag wil doen | "Eerst TODO, dan hardware testen" |
+| **Implementatieplan** | `fase{N}/Fase{N}_Implementation_Plan.md` | HOE bouwen we dit, in welke volgorde, technische taken | "YOLO safety layer implementeren" |
+| **Dagplanning** | `DAGPLANNING_{datum}.md` (root) | WANNEER doen we wat vandaag, tijdsgebonden schema | "Ochtend: hardware, middag: code" |
 | **Feature Proposal** | `docs/feature-proposals/` | Ideeën voor features, nog niet uitgewerkt | Room discovery concept |
 | **Hardware Reference** | `docs/hardware/` | Definitieve hardware configuratie | Pin mappings, wiring |
 | **Beslissing** | `DECISIONS.md` | Gemaakte keuzes met rationale | "Camera Module 3 ipv AI Camera" |
 
-**Dagplanning ≠ Implementatieplan!** Dagplanning is wat de gebruiker vandaag wil doen, implementatieplan beschrijft technische taken voor een fase.
+**Planning vs Plan:**
+- **Planning** = WANNEER (tijd) doen we WAT → Dagplanningen, sprint schedules
+- **Plan** = HOE doen we WAT en in welke VOLGORDE → Implementatieplannen
+
+Dagplanningen staan tijdelijk in root en worden na afronding gearchiveerd naar `archive/dagplanningen/`.
 
 ### Folder Structuur - Regels
 
 ```
-✅ GOED                              ❌ FOUT
-─────────────────────────────────    ─────────────────────────────────
-fase{N}/PLAN.md                      docs/plans/
-docs/feature-proposals/*.md          Wildgroei aan plan bestanden
-docs/hardware/HARDWARE-REFERENCE.md  Dubbele referenties
-archive/old-*/                       Verouderde info in actieve docs
+✅ GOED                                        ❌ FOUT
+───────────────────────────────────────        ─────────────────────────────────
+fase{N}/Fase{N}_Implementation_Plan.md         fase{N}/PLAN.md (onduidelijk)
+DAGPLANNING_{datum}.md (root, tijdelijk)       docs/plans/ (verkeerde locatie)
+docs/feature-proposals/*.md                    Wildgroei aan plan bestanden
+docs/hardware/HARDWARE-REFERENCE.md            Dubbele referenties
+archive/old-*/                                 Verouderde info in actieve docs
+archive/dagplanningen/                         Oude dagplanningen weggooien
 ```
 
 **Specifiek voor dit project:**
@@ -114,7 +120,7 @@ Bij elke wijziging, check of deze documenten consistent blijven:
 - [ ] `README.md` - Status sectie klopt met huidige fase
 - [ ] `DECISIONS.md` - Nieuwe beslissingen toegevoegd met ID
 - [ ] `ARCHITECTURE.md` - Grote wijzigingen gereflecteerd
-- [ ] `fase{N}/PLAN.md` - Taken bijgewerkt
+- [ ] `fase{N}/Fase{N}_Implementation_Plan.md` - Taken bijgewerkt
 - [ ] Referenties tussen documenten kloppen (geen dode links)
 - [ ] Geen dubbele informatie (DRY)
 - [ ] Verouderde content gearchiveerd
@@ -223,7 +229,7 @@ nerdcarx/
 │
 ├── fase2-refactor/                    # Fase 2: Refactor + Docker
 │   ├── README.md                      # Setup guide
-│   ├── PLAN.md                        # Implementatieplan
+│   ├── Fase2_Implementation_Plan.md   # Implementatieplan
 │   ├── docker-compose.yml             # Volledige stack (Ollama + Voxtral + TTS + Orchestrator)
 │   ├── config.yml                     # Centrale config
 │   ├── orchestrator/                  # Modulaire FastAPI app
@@ -234,10 +240,10 @@ nerdcarx/
 │       └── references/                # dutch2 reference audio
 │
 ├── fase3-pi/                          # Fase 3: Pi Integratie
-│   └── PLAN.md
+│   └── Fase3_Implementation_Plan.md
 │
 ├── fase4-autonomie/                   # Fase 4: Autonome gedragingen
-│   └── PLAN.md
+│   └── Fase4_Implementation_Plan.md
 │
 ├── docs/                              # Documentatie
 │   ├── feature-proposals/             # Feature ideeën (nog niet uitgewerkt)
@@ -341,13 +347,13 @@ python vad_conversation.py
 - ⏳ Camera Module 3 (verwacht 17 jan)
 - ⏳ take_photo functie echt implementeren
 - ⏳ OLED emotie display (Subfase 3b)
-- Zie [`fase3-pi/PLAN.md`](fase3-pi/PLAN.md) voor details
+- Zie [`fase3-pi/Fase3_Implementation_Plan.md`](fase3-pi/Fase3_Implementation_Plan.md) voor details
 
 **Fase 2 - Refactor + Docker:** ✅ AFGEROND (2026-01-17)
 - Modulaire orchestrator met Protocol-based services
 - Docker Compose stack (4 services: Ollama, Voxtral, TTS, Orchestrator)
 - WebSocket endpoint werkend en getest met Pi client
-- Zie [`fase2-refactor/PLAN.md`](fase2-refactor/PLAN.md) voor details
+- Zie [`fase2-refactor/Fase2_Implementation_Plan.md`](fase2-refactor/Fase2_Implementation_Plan.md) voor details
 
 **Fase 1 - Desktop Compleet:** ✅ AFGEROND (2026-01-16)
 - Volledige pipeline: VAD → STT → LLM → TTS → Speaker

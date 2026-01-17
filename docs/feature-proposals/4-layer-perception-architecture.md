@@ -73,7 +73,7 @@ Lagen communiceren via gedefinieerde interfaces:
 
 - Pi stuurt: audio, video frames, sensor data
 - Desktop stuurt: TTS audio, function calls, perceptie events
-- Protocol: JSON over WebSocket (zie `fase3-pi/PLAN.md`)
+- Protocol: JSON over WebSocket (zie `fase3-pi/Fase3_Implementation_Plan.md`)
 
 ### Dependency Injection (Fase 2)
 
@@ -205,6 +205,6 @@ Deze architectuur maakt de Fase 4 features mogelijk:
 
 - [HARDWARE-REFERENCE.md](../hardware/HARDWARE-REFERENCE.md) - Definitieve hardware configuratie
 - [autonomous-room-discovery.md](autonomous-room-discovery.md) - Laag 1 feature proposal
-- [fase3-pi/PLAN.md](../../fase3-pi/PLAN.md) - Pi integratie taken
-- [fase4-autonomie/PLAN.md](../../fase4-autonomie/PLAN.md) - Autonomie features
+- [fase3-pi/Fase3_Implementation_Plan.md](../../fase3-pi/Fase3_Implementation_Plan.md) - Pi integratie taken
+- [fase4-autonomie/Fase4_Implementation_Plan.md](../../fase4-autonomie/Fase4_Implementation_Plan.md) - Autonomie features
 - [DECISIONS.md](../../DECISIONS.md) - D010 (Camera), D011 (4-laags), D012 (Hardware)

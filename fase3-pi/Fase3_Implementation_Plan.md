@@ -512,4 +512,4 @@ python main.py
 
 ---
 
-[← Fase 2](../fase2-refactor/PLAN.md) | [Terug naar README](../README.md)
+[← Fase 2](../fase2-refactor/Fase2_Implementation_Plan.md) | [Terug naar README](../README.md)
