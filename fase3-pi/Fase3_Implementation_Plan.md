@@ -12,8 +12,9 @@ Fase 3 is opgesplitst in subfases met duidelijke prioriteiten:
 | Subfase | Focus | Prioriteit | Status |
 |---------|-------|------------|--------|
 | **3a** | Core audio flow (wake word → VAD → WebSocket → response) | - | ✅ DONE (2026-01-17) |
-| **3a+** | Modulaire Pi client + Remote function calls (take_photo) | **NU** | TODO |
-| **3b** | OLED emotie display | Na 3a+ | TODO |
+| **3a+** | Remote function calls (D016 take_photo pattern) | - | ✅ DONE (2026-01-17) |
+| **3a++** | Debug & startup optimalisatie | **NU** | TODO |
+| **3b** | OLED emotie display | Na 3a++ | TODO |
 | **3c** | Hardware uitbreiding (ToF, LEDs, Camera 3) | Na hardware | 🔄 Camera 3 eerst |
 
 ---
@@ -598,6 +599,218 @@ docker compose up -d
 | Motor control | `hardware/motion.py` + `tools/motion.py` |
 | Object detection | `perception/yolo.py` |
 | SLAM | `navigation/slam.py` |
+
+---
+
+## Subfase 3a++: Debug & Startup Optimalisatie
+
+**Doel:** Efficiëntere development workflow en betere observability
+
+### Probleem 1: TTS hercompileert bij elke restart
+
+**Huidige situatie:**
+- Fish Audio TTS compileert Cython extensions bij elke `docker compose up`
+- Kost ~2-3 minuten extra per restart
+- Cache volume bewaart alleen models, niet compiled code
+
+**Oplossing:** Pre-compiled Docker image
+
+```dockerfile
+# tts/fishaudio/Dockerfile.optimized
+FROM ghcr.io/fishaudio/fish-speech:latest as builder
+
+# Pre-compile all Cython extensions
+RUN python -c "import fish_speech; print('compiled')"
+
+# ... rest of dockerfile
+```
+
+**Alternatief:** Volume mount voor compiled `.so` files
+
+### Probleem 2: Ollama cold start failures
+
+**Huidige situatie:**
+- Eerste request na startup faalt soms (model nog niet in VRAM)
+- Workaround: handmatig restart of wachten
+
+**Oplossing:** Warmup script bij startup
+
+```yaml
+# docker-compose.yml
+ollama:
+  healthcheck:
+    test: ["CMD", "curl", "-f", "http://localhost:11434/api/generate", "-d", '{"model":"ministral-3:14b","prompt":"hi","stream":false}']
+    interval: 30s
+    timeout: 60s
+    retries: 3
+    start_period: 120s
+```
+
+### Probleem 3: Debug info op verkeerde plek
+
+**Huidige situatie:**
+- Pi toont timing (STT/LLM/TTS) maar weet die waardes niet (altijd 0ms)
+- Inefficiënt: debug info hoort bij orchestrator
+
+**Oplossing:** Orchestrator-centric debug met config flag
+
+#### Stap 1: Config uitbreiden
+
+```yaml
+# config.yml
+debug:
+  enabled: true
+  log_file: "debug/conversation.log"  # of null voor alleen console
+  verbose: true  # extra details
+```
+
+#### Stap 2: Debug logger in orchestrator
+
+**File:** `orchestrator/app/utils/debug_logger.py`
+
+```python
+class ConversationDebugger:
+    """Logt conversation turns met timing en details."""
+
+    def __init__(self, enabled: bool, log_file: Optional[str] = None):
+        self.enabled = enabled
+        self.log_file = log_file
+        self.current_turn = {}
+
+    def start_turn(self, turn_id: str, client_id: str):
+        if not self.enabled:
+            return
+        self.current_turn = {
+            "turn_id": turn_id,
+            "client_id": client_id,
+            "started_at": time.time(),
+            "steps": []
+        }
+
+    def log_step(self, step: str, duration_ms: float, details: dict = None):
+        if not self.enabled:
+            return
+        self.current_turn["steps"].append({
+            "step": step,
+            "duration_ms": duration_ms,
+            "details": details or {},
+            "timestamp": time.time()
+        })
+
+    def end_turn(self):
+        if not self.enabled:
+            return
+        self._write_turn(self.current_turn)
+
+    def _write_turn(self, turn: dict):
+        """Schrijf naar console en optioneel naar file."""
+        output = self._format_turn(turn)
+        print(output)
+        if self.log_file:
+            with open(self.log_file, "a") as f:
+                f.write(output + "\n")
+
+    def _format_turn(self, turn: dict) -> str:
+        lines = [
+            f"\n{'─' * 60}",
+            f"[Turn {turn['turn_id']}] Client: {turn['client_id']}",
+        ]
+        for step in turn["steps"]:
+            lines.append(f"  {step['step']}: {step['duration_ms']:.0f}ms")
+            if step.get("details"):
+                for k, v in step["details"].items():
+                    lines.append(f"    {k}: {v}")
+        lines.append(f"{'─' * 60}")
+        return "\n".join(lines)
+```
+
+#### Stap 3: Integratie in handler
+
+```python
+# handlers.py - _handle_audio_process
+async def _handle_audio_process(self, client_id: str, message: Message):
+    turn_id = str(uuid.uuid4())[:8]
+    self.debugger.start_turn(turn_id, client_id)
+
+    # STT
+    t0 = time.perf_counter()
+    user_text = await stt.transcribe(audio_bytes)
+    stt_ms = (time.perf_counter() - t0) * 1000
+    self.debugger.log_step("STT", stt_ms, {"text": user_text[:50]})
+
+    # LLM
+    t0 = time.perf_counter()
+    response = await llm.chat(messages, tools)
+    llm_ms = (time.perf_counter() - t0) * 1000
+    self.debugger.log_step("LLM", llm_ms, {
+        "response": response.content[:50],
+        "tool_calls": len(response.tool_calls or [])
+    })
+
+    # Tool calls
+    if response.tool_calls:
+        for tc in response.tool_calls:
+            t0 = time.perf_counter()
+            result = await self._execute_tool(tc)
+            tool_ms = (time.perf_counter() - t0) * 1000
+            self.debugger.log_step(f"Tool:{tc['name']}", tool_ms, {
+                "remote": is_remote,
+                "result": result[:30]
+            })
+
+    # TTS
+    t0 = time.perf_counter()
+    audio = await tts.synthesize(content)
+    tts_ms = (time.perf_counter() - t0) * 1000
+    self.debugger.log_step("TTS", tts_ms, {"chars": len(content)})
+
+    self.debugger.end_turn()
+```
+
+#### Stap 4: Pi client v3 (simpeler)
+
+**File:** `test_scripts/pi_conversation_v3.py`
+
+Veranderingen t.o.v. v2:
+- Geen timing weergave (komt van orchestrator)
+- Alleen lokale events: wake word, VAD, function execution, audio playback
+- Cleaner output
+
+```python
+# Simpelere output
+print(f"[Turn {turn}]")
+print(f"  🎧 Listening...")
+print(f"  🔴 Speech detected ({duration:.1f}s)")
+print(f"  📡 Sent to orchestrator")
+
+# Function calls worden getoond als ze binnenkomen
+# 🔧 [FUNCTION_REQUEST] take_photo
+# ✅ [FUNCTION_RESULT] sent
+
+# Audio playback
+print(f"  🔊 Playing response ({len(chunks)} chunks)")
+
+# Geen timing summary - die staat in orchestrator logs
+```
+
+### Implementatie Volgorde
+
+| # | Taak | Bestand(en) | Prioriteit |
+|---|------|-------------|------------|
+| 1 | Debug config toevoegen | `config.yml`, `config.py` | Hoog |
+| 2 | ConversationDebugger class | `utils/debug_logger.py` | Hoog |
+| 3 | Integratie in handler | `handlers.py` | Hoog |
+| 4 | Pi client v3 | `pi_conversation_v3.py` | Hoog |
+| 5 | Ollama warmup healthcheck | `docker-compose.yml` | Medium |
+| 6 | TTS pre-compile (optioneel) | `Dockerfile.optimized` | Laag |
+
+### Test Criteria
+
+- [ ] `debug.enabled: true` toont timing in orchestrator console
+- [ ] `debug.log_file` schrijft naar file
+- [ ] Pi v3 script is simpeler en sneller
+- [ ] Ollama eerste request faalt niet meer
+- [ ] (Optioneel) TTS start sneller na rebuild
 
 ---
 

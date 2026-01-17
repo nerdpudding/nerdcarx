@@ -26,11 +26,12 @@ services:
       - OLLAMA_KV_CACHE_TYPE=q8_0
       - OLLAMA_KEEP_ALIVE=-1
     healthcheck:
-      test: ["CMD-SHELL", "ollama list || exit 1"]
+      # Ollama container heeft geen curl, gebruik ollama CLI
+      test: ["CMD", "ollama", "list"]
       interval: 30s
       timeout: 10s
-      retries: 5
-      start_period: 30s
+      retries: 3
+      start_period: 10s
     restart: unless-stopped
 
   # Voxtral STT - Speech-to-Text via vLLM
@@ -51,8 +52,8 @@ services:
     volumes:
       - ~/.cache/huggingface:/root/.cache/huggingface
     ipc: host
-    # vLLM configuratie - officieel aanbevolen door Mistral
-    # Bron: https://huggingface.co/mistralai/Voxtral-Mini-3B-2507#vllm-recommended
+    # vLLM configuratie voor korte transcripties
+    # Laag geheugen: we doen alleen korte audio, geen lange context nodig
     command: >
       --model mistralai/Voxtral-Mini-3B-2507
       --tokenizer_mode mistral
@@ -60,8 +61,8 @@ services:
       --load_format mistral
       --host 0.0.0.0
       --port 8000
-      --max-model-len 4096
-      --gpu-memory-utilization 0.75
+      --max-model-len 2048
+      --gpu-memory-utilization 0.70
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
@@ -86,7 +87,9 @@ services:
     volumes:
       - ./tts/fishaudio/checkpoints:/app/checkpoints:ro
       - ./tts/fishaudio/references:/app/references  # Niet ro, Fish Audio schrijft hier
-      - tts-cache:/root/.cache  # Compile cache persisteren
+      - ./tts/inductor-cache:/app/inductor-cache  # PyTorch compile cache (bind mount)
+    environment:
+      - TORCHINDUCTOR_CACHE_DIR=/app/inductor-cache
     entrypoint: uv
     command: run tools/api_server.py --listen 0.0.0.0:8080 --compile
     healthcheck:
@@ -106,6 +109,7 @@ services:
       - "8200:8200"
     volumes:
       - ./config.yml:/app/config.yml:ro
+      - ./logs:/app/logs  # Debug logs naar host filesystem
     environment:
       - OLLAMA_URL=http://ollama:11434
       - VOXTRAL_URL=http://voxtral:8000
@@ -128,5 +132,3 @@ services:
 volumes:
   ollama:
     external: true  # Gedeelde volume met andere ollama container
-  tts-cache:
-    name: nerdcarx-tts-cache  # Compile cache voor Fish Audio

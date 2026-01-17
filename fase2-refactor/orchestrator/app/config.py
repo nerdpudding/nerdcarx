@@ -70,6 +70,13 @@ class WebSocketConfig:
 
 
 @dataclass
+class DebugConfig:
+    enabled: bool = False
+    log_file: Optional[str] = None  # Relatief pad, bijv. "logs/conversation.log"
+    verbose: bool = False
+
+
+@dataclass
 class AppConfig:
     """Centrale applicatie configuratie."""
     ollama: OllamaConfig
@@ -79,6 +86,7 @@ class AppConfig:
     emotions: EmotionsConfig
     tts: TTSConfig
     websocket: WebSocketConfig
+    debug: DebugConfig
     system_prompt: str = ""
 
 
@@ -151,6 +159,7 @@ def load_config(config_path: Optional[Path] = None) -> AppConfig:
         emotions=EmotionsConfig(**config.get("emotions", {})),
         tts=TTSConfig(**config.get("tts", {})),
         websocket=WebSocketConfig(**config.get("websocket", {})),
+        debug=DebugConfig(**config.get("debug", {})),
         system_prompt=config.get("system_prompt", "")
     )
 

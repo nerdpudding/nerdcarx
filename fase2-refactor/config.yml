@@ -115,3 +115,20 @@ websocket:
   enabled: true
   heartbeat_interval: 30
   audio_chunk_threshold: 3
+
+# === DEBUG ===
+# Debug logging voor conversation turns (timing, transcripties, tool calls)
+#
+# Output locaties:
+#   1. Docker logs: altijd zichtbaar via `docker compose logs orchestrator -f`
+#   2. Log file: optioneel, geschreven naar HOST filesystem (niet alleen in container)
+#
+# log_file pad is RELATIEF aan fase2-refactor/ op je DESKTOP:
+#   - "logs/conversation.log" → ~/vibe.../fase2-refactor/logs/conversation.log
+#   - null → alleen docker logs, geen file op disk
+#
+# Volume mount in docker-compose.yml: ./logs:/app/logs
+debug:
+  enabled: true
+  log_file: "logs/conversation.log"
+  verbose: true  # extra details (transcriptie preview, response preview)

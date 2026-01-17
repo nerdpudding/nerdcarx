@@ -2,6 +2,7 @@
 import asyncio
 import base64
 import json
+import time
 import uuid
 from typing import Optional
 
@@ -18,7 +19,7 @@ from .manager import ConnectionManager
 from ..config import get_config
 from ..models import EmotionManager, ConversationManager, FunctionCall
 from ..services import OllamaLLM, VoxtralSTT, FishAudioTTS, ToolRegistry
-from ..utils import split_into_sentences
+from ..utils import split_into_sentences, ConversationDebugger
 
 # Timeout voor remote tool execution (seconden)
 REMOTE_TOOL_TIMEOUT = 30.0
@@ -36,12 +37,16 @@ class MessageHandler:
         connection_manager: ConnectionManager,
         emotion_manager: EmotionManager,
         conversation_manager: ConversationManager,
-        tool_registry: ToolRegistry
+        tool_registry: ToolRegistry,
+        debugger: Optional[ConversationDebugger] = None
     ):
         self.connections = connection_manager
         self.emotions = emotion_manager
         self.conversations = conversation_manager
         self.tools = tool_registry
+
+        # Debug logger (optioneel, via config)
+        self.debugger = debugger or ConversationDebugger(enabled=False)
 
         # Pending remote tool requests: request_id -> (event, result_dict)
         self._pending_requests: dict[str, tuple[asyncio.Event, dict]] = {}
@@ -97,6 +102,10 @@ class MessageHandler:
         config = get_config()
         conv_id = message.conversation_id
 
+        # Start debug turn
+        turn_id = uuid.uuid4().hex[:8]
+        self.debugger.start_turn(turn_id, client_id)
+
         audio_b64 = message.payload.get("audio_base64")
         if not audio_b64:
             await self._send_error(client_id, conv_id, "No audio data")
@@ -107,6 +116,7 @@ class MessageHandler:
             audio_bytes = base64.b64decode(audio_b64)
 
             # === STT ===
+            t0 = time.perf_counter()
             stt = VoxtralSTT(
                 url=config.voxtral.url,
                 model=config.voxtral.model,
@@ -116,12 +126,16 @@ class MessageHandler:
                 audio_bytes,
                 language=message.payload.get("language", "nl")
             )
+            stt_ms = (time.perf_counter() - t0) * 1000
+            self.debugger.log_step("STT", stt_ms, {"text": user_text[:80] if user_text else ""})
 
             if not user_text.strip():
                 await self._send_error(client_id, conv_id, "Empty transcription")
+                self.debugger.end_turn()
                 return
 
             # === LLM ===
+            t0 = time.perf_counter()
             llm = OllamaLLM(
                 url=config.ollama.url,
                 model=config.ollama.model,
@@ -149,12 +163,21 @@ class MessageHandler:
             response = await llm.chat(messages=messages, tools=tools)
             content = response.content
             function_calls = []
+            llm_ms = (time.perf_counter() - t0) * 1000
+            self.debugger.log_step("LLM", llm_ms, {
+                "response": content[:80] if content else "",
+                "tool_calls": len(response.tool_calls or [])
+            })
 
             # Process tool calls
             if response.tool_calls:
+                t0 = time.perf_counter()
                 content, function_calls = await self._process_tool_calls(
                     llm, messages, response.tool_calls, conv_id, client_id
                 )
+                tools_ms = (time.perf_counter() - t0) * 1000
+                tool_names = [fc.name for fc in function_calls]
+                self.debugger.log_step("Tools", tools_ms, {"executed": ", ".join(tool_names)})
 
             conv.add_assistant_message(content)
 
@@ -185,6 +208,7 @@ class MessageHandler:
 
             # === TTS ===
             if config.tts.enabled and content.strip():
+                t0 = time.perf_counter()
                 tts = FishAudioTTS(
                     url=config.tts.url,
                     reference_id=config.tts.reference_id,
@@ -193,12 +217,14 @@ class MessageHandler:
                     format=config.tts.format
                 )
 
+                tts_chunks = 0
                 if config.tts.streaming:
                     # Stream per sentence
                     sentences = split_into_sentences(content)
                     for i, sentence in enumerate(sentences):
                         result = await tts.synthesize(sentence)
                         if result.audio_bytes:
+                            tts_chunks += 1
                             audio_b64 = base64.b64encode(result.audio_bytes).decode("utf-8")
                             chunk_msg = AudioChunkMessage.create(
                                 audio_base64=audio_b64,
@@ -212,6 +238,7 @@ class MessageHandler:
                     # Single audio response
                     result = await tts.synthesize(content)
                     if result.audio_bytes:
+                        tts_chunks = 1
                         audio_b64 = base64.b64encode(result.audio_bytes).decode("utf-8")
                         chunk_msg = AudioChunkMessage.create(
                             audio_base64=audio_b64,
@@ -222,7 +249,14 @@ class MessageHandler:
                         )
                         await self.connections.send_json(client_id, chunk_msg.to_dict())
 
+                tts_ms = (time.perf_counter() - t0) * 1000
+                self.debugger.log_step("TTS", tts_ms, {"chunks": tts_chunks})
+
+            # End debug turn
+            self.debugger.end_turn()
+
         except Exception as e:
+            self.debugger.end_turn()
             await self._send_error(client_id, conv_id, f"Processing error: {str(e)}")
 
     async def _process_tool_calls(

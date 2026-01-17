@@ -167,64 +167,183 @@ nerdcarx/
 └── original_fish-speech-REFERENCE/    # Fish Audio TTS repo + model checkpoints
 ```
 
-## Quick Start
+## Quick Install
 
-### Fase 2 (Docker - aanbevolen)
+> **⚠️ Work in Progress**: Deze sectie wordt nog uitgebreid. Momenteel alleen de Docker desktop stack en Pi setup.
+
+### Prerequisites
+
+> **Note:** Onderstaande requirements zijn voor volledige lokale processing: STT/LLM/TTS draaien op de desktop, wake word en VAD draaien op de Pi. Cloud API's en hybrid configuraties (lagere hardware eisen) zijn gepland voor later.
+
+**Software (Desktop):**
+- Docker 24.0+ met NVIDIA Container Toolkit
+- NVIDIA drivers (550+)
+- Git, rsync
+
+**Hardware (Desktop):**
+- 2x GPU met voldoende VRAM (of 1 grote GPU)
+  - GPU0: LLM (Ollama) + TTS → minimaal 20GB (Ministral 14B Q8 + TTS)
+  - GPU1: STT (vLLM/Voxtral) → minimaal 15GB (model + KV cache)
+- 32GB+ RAM
+
+**Hardware (Pi):**
+- Raspberry Pi 5 (8GB minimaal, 16GB aanbevolen)
+- PiCar-X v2.0 kit (incl. USB mic, I2S speaker, Robot HAT)
+
+---
+
+### Desktop: Docker Stack
+
+De stack bestaat uit 4 services in `docker-compose.yml`:
+
+| Service | Rol | Poort |
+|---------|-----|-------|
+| **orchestrator** | FastAPI hub - routeert requests tussen services, WebSocket endpoint voor Pi | 8200 |
+| **ollama** | LLM - Ministral 14B Q8 voor conversatie en function calling | 11434 |
+| **voxtral** | STT - Speech-to-Text via vLLM met Voxtral Mini 3B | 8150 |
+| **tts** | TTS - Text-to-Speech via Fish Audio S1-mini | 8250 |
+
+#### Eerste keer: Build & Run
 
 ```bash
-# Zie fase2-refactor/README.md voor complete instructies
+cd fase2-refactor
 
-# 1. Start volledige stack (incl. Ollama)
+# Build images (alleen eerste keer of na code changes)
+docker compose up -d --build
+
+# Volg startup logs
+docker compose logs -f
+```
+
+#### Normale startup (na eerste keer)
+
+```bash
 cd fase2-refactor
 docker compose up -d
 
-# 2. Check status (alle 4 moeten healthy zijn)
-docker ps --filter "name=nerdcarx" --format "table {{.Names}}\t{{.Status}}"
+# Check status (alle 4 healthy = klaar)
+docker ps --format "table {{.Names}}\t{{.Status}}"
+```
 
-# 3. Health check
+#### Stoppen vs Verwijderen
+
+```bash
+# AANBEVOLEN: Stop containers (houdt state, snelle restart)
+docker compose stop
+
+# VERMIJD: Remove containers (CUDA graphs moeten opnieuw)
+docker compose down  # Alleen als nodig
+```
+
+> **Belangrijk:** vLLM (Voxtral) bouwt CUDA graphs bij startup (~2 min). Stop containers liever dan ze te verwijderen voor snellere herstart.
+
+#### Startup timing
+
+| Service | Eerste keer | Na stop/start |
+|---------|-------------|---------------|
+| Ollama | ~10s | ~10s |
+| TTS | ~3 min (compile) | ~30s (cached) |
+| Voxtral | ~2.5 min (CUDA graphs) | ~2.5 min |
+| Orchestrator | ~5s + warmup | ~5s + warmup |
+
+- **TTS compile cache**: Na eerste run is PyTorch compile cache opgeslagen in `tts/inductor-cache/`
+- **Ollama warmup**: Orchestrator laadt automatisch het LLM model in VRAM bij startup
+
+#### Verificatie
+
+```bash
+# Health check
 curl http://localhost:8200/health
 
-# 4. Chat test
+# Chat test
 curl -X POST http://localhost:8200/chat \
   -H "Content-Type: application/json" \
   -d '{"message": "Hallo!"}'
-
-# 5. Audio pipeline test (STT → LLM → TTS)
-curl -X POST http://localhost:8200/audio-conversation \
-  -F "audio=@test.wav" --output response.wav
-aplay response.wav
 ```
 
-### Fase 1 (Legacy - conda)
+---
+
+### Pi: Client Setup
+
+> **Voorwaarde:** Volg eerst de standaard [PiCar-X handleiding](https://docs.sunfounder.com/projects/picar-x/en/latest/) om de robot te bouwen en het Pi OS te installeren. Begin pas hierna met onderstaande NerdCarX setup.
+
+#### 1. SSH naar Pi
 
 ```bash
-# Zie fase1-desktop/README.md voor complete instructies
-
-# 1. Start Voxtral STT (GPU1)
-cd fase1-desktop/stt-voxtral/docker && docker compose up -d
-
-# 2. Start Ollama LLM (GPU0)
-ollama serve  # of via docker
-ollama pull ministral-3:8b
-
-# 3. Start Fish Audio TTS (Docker)
-cd original_fish-speech-REFERENCE
-docker run -d --gpus device=0 --name fish-tts \
-    -v $(pwd)/checkpoints:/app/checkpoints \
-    -v $(pwd)/references:/app/references \
-    -p 8250:8080 --entrypoint uv \
-    fishaudio/fish-speech \
-    run tools/api_server.py --listen 0.0.0.0:8080 --compile
-
-# 4. Start Orchestrator
-conda activate nerdcarx-vad
-cd fase1-desktop/orchestrator
-uvicorn main:app --port 8200 --reload
-
-# 5. Start VAD Conversation
-cd fase1-desktop/vad-desktop
-python vad_conversation.py
+ssh pi@<PI_IP_ADDRESS>
+# Voorbeeld: ssh pi@192.168.1.235
 ```
+
+#### 2. Conda Environment
+
+Installeer Miniforge (aanbevolen voor ARM64):
+
+```bash
+# Download en installeer Miniforge
+wget https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-aarch64.sh
+bash Miniforge3-Linux-aarch64.sh
+
+# Herstart shell of source
+source ~/.bashrc
+
+# Maak environment
+conda create -n nerdcarx python=3.13 -y
+conda activate nerdcarx
+
+# Installeer dependencies
+pip install pyaudio numpy websockets openwakeword onnxruntime
+```
+
+Verificatie:
+```bash
+(nerdcarx) pi@nerdcarx:~ $ python --version
+Python 3.13.11
+```
+
+#### 3. Sync Scripts naar Pi
+
+Vanaf desktop:
+
+```bash
+# Sync fase3-pi folder naar Pi
+rsync -avz --delete \
+  ~/path/to/nerdcarx/fase3-pi/ \
+  pi@<PI_IP_ADDRESS>:~/fase3-pi/
+
+# Voorbeeld met concreet IP:
+rsync -avz --delete \
+  ~/vibe_claude_kilo_cli_exp/nerdcarx/fase3-pi/ \
+  pi@192.168.1.235:~/fase3-pi/
+```
+
+#### 4. Run Conversation Script
+
+Op de Pi:
+
+```bash
+conda activate nerdcarx
+cd ~/fase3-pi/test_scripts
+
+# Start conversation (wake word + voice)
+python pi_conversation_v3.py
+```
+
+Het script:
+1. Wacht op wake word ("hey jarvis")
+2. Luistert naar spraak (VAD)
+3. Stuurt audio naar desktop orchestrator
+4. Speelt response audio af
+
+> **Tip:** Debug info (timing STT/LLM/TTS) is zichtbaar in orchestrator logs:
+> ```bash
+> docker compose logs orchestrator -f
+> ```
+
+---
+
+### Legacy: Fase 1 (Conda)
+
+Zie [`fase1-desktop/README.md`](fase1-desktop/README.md) voor de oude conda-based setup zonder Docker Compose.
 
 ## Hardware Vereisten
 

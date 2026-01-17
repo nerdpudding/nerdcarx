@@ -8,6 +8,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
 from ..config import get_config
 from ..models import EmotionManager, ConversationManager
 from ..services.tools import ToolRegistry, EmotionTool, VisionTool
+from ..utils import ConversationDebugger
 from ..websocket import ConnectionManager, MessageHandler
 
 router = APIRouter(tags=["websocket"])
@@ -51,11 +52,19 @@ def get_message_handler() -> MessageHandler:
             llm_model=config.ollama.model
         ))
 
+        # Debug logger (config bepaalt of het actief is)
+        debugger = ConversationDebugger(
+            enabled=config.debug.enabled,
+            log_file=config.debug.log_file,
+            verbose=config.debug.verbose
+        )
+
         _message_handler = MessageHandler(
             connection_manager=get_connection_manager(),
             emotion_manager=emotion_manager,
             conversation_manager=conversation_manager,
-            tool_registry=tool_registry
+            tool_registry=tool_registry,
+            debugger=debugger
         )
     return _message_handler
 

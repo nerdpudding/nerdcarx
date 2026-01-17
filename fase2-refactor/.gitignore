@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+
+# Logs
+logs/
+*.log
+
+# Cache
+tts/inductor-cache/
+
+# IDE
+.idea/
+.vscode/
