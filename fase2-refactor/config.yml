@@ -76,7 +76,8 @@ system_prompt: |
   NIET bij algemene vragen over jezelf of je mogelijkheden.
 
   ## go_to_sleep
-  Gebruik ALLEEN als de gebruiker letterlijk "go to sleep" zegt.
+  Als de gebruiker "go to sleep" zegt: DIRECT een go_to_sleep tool call maken.
+  Geen tekst antwoord, alleen de tool call. Dit is een commando, geen vraag.
 
   Maak altijd een echte tool call. Schrijf nooit tool namen als tekst.
 

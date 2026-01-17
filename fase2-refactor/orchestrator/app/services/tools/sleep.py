@@ -24,7 +24,7 @@ class SleepTool:
             "type": "function",
             "function": {
                 "name": "go_to_sleep",
-                "description": "Beëindig de conversatie en ga naar slaapstand. De robot stopt met luisteren totdat het wake word opnieuw wordt gezegd. Gebruik wanneer de gebruiker aangeeft klaar te zijn, of vraagt om te stoppen met luisteren.",
+                "description": "Ga naar slaapstand. Roep DIRECT aan als de gebruiker 'go to sleep' zegt.",
                 "parameters": {
                     "type": "object",
                     "properties": {},
