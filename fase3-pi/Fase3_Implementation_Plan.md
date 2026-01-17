@@ -855,15 +855,86 @@ print(f"  🔊 Playing response ({len(chunks)} chunks)")
 
 ---
 
-## Subfase 3c: Hardware Uitbreiding (TOEKOMST)
+## Subfase 3c: Hardware Uitbreiding + Unified Script
 
-**Niet nu implementeren.** Komt later wanneer hardware binnen is:
+**Status:** 🔄 IN PROGRESS (2026-01-17)
+**Doel:** Camera Module 3 installeren, LEDs aansluiten, en unified script maken
 
-- ToF sensoren (VL53L0X) via I2C hub - **Besteld**
-- Grove LEDs op D0/D1 - **Besteld**
-- Camera Module 3 (IMX708) - **Besteld**
-- YOLO safety layer
-- SLAM navigatie
+### Overzicht
+
+| Onderdeel | Status | TODO |
+|-----------|--------|------|
+| Camera Module 3 (IMX708) | ✅ | [A2_TODO.md](A2_TODO.md) |
+| Grove LEDs (D0/D1) | ⏳ | A3_TODO.md (later) |
+| Unified Script | ⏳ | A4_TODO.md (later) |
+| ToF Sensoren | ❌ | Later (wacht op 3D print bevestigingen) |
+
+### Camera Module 3 (IMX708)
+
+**Belangrijk:** Camera Module 3 werkt NIET met `Vilib` (SunFounder legacy library).
+Moet `picamera2` gebruiken (officiële Raspberry Pi library).
+
+**Verschillen met OV5647:**
+| Aspect | OV5647 (oud) | Camera Module 3 (nieuw) |
+|--------|--------------|-------------------------|
+| Sensor | OV5647 | Sony IMX708 |
+| Autofocus | Nee | Ja |
+| HDR | Nee | Ja |
+| Resolutie | 5MP | 12MP |
+| Library | Vilib/picamera | picamera2/libcamera |
+| Low-light | Matig | Beter |
+
+### Grove LEDs (D0/D1)
+
+Witte indicator LEDs voor:
+- Obstacle warning (koppelen aan ToF later)
+- Status indicatie
+- "Ik luister" indicator tijdens VAD
+
+### Unified Script Architectuur
+
+Combineert `pi_conversation_v3.py` + `nerdcarx_web.py`:
+
+```
+unified_nerdcarx.py
+├── Web Server (Flask, poort 5000)
+│   ├── /           → Web UI (WASD + camera + voice toggle)
+│   ├── /video_feed → MJPEG stream (picamera2)
+│   └── /api/*      → REST endpoints
+│
+├── Voice Module (threading)
+│   ├── Wake word detectie (toggle via web)
+│   ├── VAD opname
+│   └── WebSocket naar orchestrator
+│
+├── Camera Module (picamera2)
+│   ├── Live stream
+│   ├── YOLO overlay (optioneel)
+│   └── take_photo voor LLM vision
+│
+├── OLED Module (bestaand)
+│   └── show_emotion handler
+│
+└── Hardware Module
+    ├── Motor control (Picarx)
+    ├── LED indicators (D0/D1)
+    └── Camera servo's (P0/P1)
+```
+
+### YOLO Strategie
+
+| Locatie | Model | Use Case |
+|---------|-------|----------|
+| Pi 5 | YOLO11n (nano) | Real-time safety, obstacle detection |
+| Desktop (optioneel) | YOLO11m/l | Gedetailleerde analyse via stream |
+
+Later in fase 4: SLAM navigatie gebaseerd op YOLO + ToF data.
+
+### Niet in Fase 3c
+
+- ToF sensoren (wachten op 3D geprinte bevestigingen)
+- SLAM navigatie (fase 4)
+- Autonome rijden (fase 4)
 
 ---
 

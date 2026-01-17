@@ -104,7 +104,15 @@ AUDIO_GAIN = 10.0
 VAD_MODEL_URL = "https://github.com/snakers4/silero-vad/raw/v4.0/files/silero_vad.onnx"
 VAD_MODEL_PATH = os.path.expanduser("~/silero_vad_v4.onnx")
 
-# Mock photo
+# Camera Module 3 (IMX708) via picamera2
+CAMERA_AVAILABLE = False
+try:
+    from picamera2 import Picamera2
+    CAMERA_AVAILABLE = True
+except ImportError:
+    print("⚠️ picamera2 niet beschikbaar, take_photo gebruikt mock foto")
+
+# Fallback mock photo
 MOCK_PHOTO_PATH = Path(__file__).parent / "mock_photo.jpg"
 
 # Emotie emoji's
@@ -262,13 +270,75 @@ def find_device_by_name(p: pyaudio.PyAudio, name_pattern: str, need_input: bool 
 # REMOTE TOOL HANDLERS
 # ============================================================================
 
+def play_camera_shutter() -> None:
+    """Speel camera shutter geluid."""
+    try:
+        p = pyaudio.PyAudio()
+        sample_rate = SPEAKER_SAMPLE_RATE or 44100
+        # Kort "klik" geluid - hoge freq, zeer kort
+        duration = 0.08
+        t = np.linspace(0, duration, int(sample_rate * duration), dtype=np.float32)
+        # Twee korte klikken voor shutter effect
+        wave1 = np.sin(2 * np.pi * 1200 * t) * np.exp(-t * 40)  # Decay
+        audio = (wave1 * 20000).astype(np.int16)
+
+        stream = p.open(format=FORMAT, channels=1, rate=sample_rate,
+                       output=True, output_device_index=SPEAKER_DEVICE_INDEX)
+        stream.write(audio.tobytes())
+        stream.stop_stream()
+        stream.close()
+        p.terminate()
+    except Exception:
+        pass  # Geen geluid is niet kritiek
+
+
 def execute_take_photo() -> tuple[str, str]:
-    """Execute take_photo - lees mock foto."""
-    if MOCK_PHOTO_PATH.exists():
-        print("  📷 Reading mock_photo.jpg")
-        with open(MOCK_PHOTO_PATH, "rb") as f:
-            return "Photo captured", base64.b64encode(f.read()).decode('utf-8')
-    return "No camera available", ""
+    """Execute take_photo - maak foto met Camera Module 3."""
+    if CAMERA_AVAILABLE:
+        try:
+            from PIL import Image
+            print("  📷 Capturing photo with Camera Module 3...")
+
+            camera = Picamera2()
+            config = camera.create_still_configuration(
+                main={"size": (640, 480)},  # Klein voor snelle transfer
+            )
+            camera.configure(config)
+            camera.start()
+
+            # Wacht op autofocus
+            time.sleep(1)
+
+            # Shutter geluid + capture
+            play_camera_shutter()
+            array = camera.capture_array()
+            camera.stop()
+            camera.close()
+
+            # Converteer naar JPEG base64
+            img = Image.fromarray(array)
+            buffer = io.BytesIO()
+            img.save(buffer, format="JPEG", quality=85)
+            image_base64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
+
+            print(f"  📷 Photo captured ({len(image_base64) // 1024} KB)")
+            return "Photo captured", image_base64
+
+        except Exception as e:
+            print(f"  ⚠️ Camera error: {e}")
+            # Fallback naar mock
+            if MOCK_PHOTO_PATH.exists():
+                print("  📷 Fallback: reading mock_photo.jpg")
+                with open(MOCK_PHOTO_PATH, "rb") as f:
+                    return "Photo captured (mock)", base64.b64encode(f.read()).decode('utf-8')
+            return f"Camera error: {e}", ""
+    else:
+        # Geen camera, gebruik mock
+        if MOCK_PHOTO_PATH.exists():
+            print("  📷 Reading mock_photo.jpg (no camera)")
+            with open(MOCK_PHOTO_PATH, "rb") as f:
+                return "Photo captured (mock)", base64.b64encode(f.read()).decode('utf-8')
+        return "No camera available", ""
 
 
 async def handle_function_request(ws, payload: dict, conv_id: str) -> tuple[bool, str]:

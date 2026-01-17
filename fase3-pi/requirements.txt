@@ -13,3 +13,10 @@ onnxruntime  # Automatisch geinstalleerd via openwakeword
 
 # WebSocket client
 websockets>=12.0
+
+# Camera Module 3 (IMX708)
+picamera2
+pillow  # Voor image processing
+
+# OLED Display
+luma.oled
