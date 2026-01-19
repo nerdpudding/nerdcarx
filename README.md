@@ -163,6 +163,9 @@ nerdcarx/
 │   └── hardware/                      # Hardware referentie
 │       └── HARDWARE-REFERENCE.md      # Definitieve hardware configuratie
 │
+├── Custom CAD_STL parts/              # 3D-printbare onderdelen (OpenSCAD)
+│   └── v7.scad/.stl                   # Camera Module 3 + OLED mount
+│
 ├── original_Picar-X-REFERENCE/        # PiCar-X documentatie (referentie)
 └── original_fish-speech-REFERENCE/    # Fish Audio TTS repo + model checkpoints
 ```
@@ -462,6 +465,7 @@ Zie [`fase1-desktop/README.md`](fase1-desktop/README.md) voor de oude conda-base
 > - [`ARCHITECTURE.md`](ARCHITECTURE.md) - Uitgebreide architectuur documentatie met diagrammen
 > - [`DECISIONS.md`](DECISIONS.md) - Alle beslissingen en rationale
 > - [`original_Picar-X-REFERENCE/`](original_Picar-X-REFERENCE/) - PiCar-X hardware documentatie
+> - [`Custom CAD_STL parts/`](Custom%20CAD_STL%20parts/) - 3D-printbare onderdelen + AI-assisted CAD workflow
 
 ---
 

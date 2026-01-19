@@ -86,6 +86,7 @@ models/
 !**/vad-desktop/*.jpg
 !**/vad-desktop/*.jpeg
 !**/vad-desktop/*.png
+!Custom\ CAD_STL\ parts/*.jpg
 
 # Logs
 *.log
