@@ -286,6 +286,3 @@ ModuleNotFoundError: No module named 'librosa'
 docker compose build --no-cache
 ```
 
----
-
-[← Terug naar 1a Plan](../PLAN.md)
