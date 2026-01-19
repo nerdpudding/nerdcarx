@@ -1,0 +1,42 @@
+# Fish Audio TTS - Standalone (CPU mode)
+#
+# Voor systemen ZONDER NVIDIA GPU.
+# Voor GPU versie: zie docker-compose.yml (tts service)
+#
+# Gebruik:
+#   docker compose -f docker-compose.tts-standalone.yml up -d
+#   docker compose -f docker-compose.tts-standalone.yml logs -f
+#
+# Test:
+#   curl http://localhost:8250/v1/health
+#   curl -X POST http://localhost:8250/v1/tts \
+#     -H "Content-Type: application/json" \
+#     -d '{"text": "Hallo, dit is een test!", "reference_id": "dutch2"}' \
+#     --output test.wav && aplay test.wav
+
+services:
+  tts:
+    image: fishaudio/fish-speech:latest
+    container_name: fish-tts-standalone
+    ports:
+      - "8250:8080"
+    volumes:
+      # Model checkpoints (download eerst via huggingface)
+      - ./tts/fishaudio/checkpoints:/app/checkpoints:ro
+      # Voice references (je eigen stemmen)
+      - ./tts/fishaudio/references:/app/references
+      # PyTorch compile cache (optioneel, versnelt herstart)
+      - ./tts/inductor-cache:/app/inductor-cache
+    environment:
+      - TORCHINDUCTOR_CACHE_DIR=/app/inductor-cache
+    entrypoint: uv
+    # CPU mode - langzamer maar werkt zonder GPU
+    command: run tools/api_server.py --listen 0.0.0.0:8080 --device cpu
+    restart: unless-stopped
+    # Health check
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 180s  # Model laden duurt even
