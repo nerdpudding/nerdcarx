@@ -4,7 +4,7 @@ Aangepaste 3D-geprinte onderdelen voor NerdCarX.
 
 ## Waarom custom parts?
 
-De standaard PiCar-X camera mount is ontworpen voor de **Camera Module 2**. De nieuwe **Camera Module 3** heeft een grotere lens die niet past. Daarnaast wilden we een **OLED display** toevoegen voor emoties, wat niet voorzien is in het originele ontwerp.
+De standaard PiCar-X camera mount is ontworpen voor de **Camera Module 2**. De nieuwe **Camera Module 3** heeft een grotere lens die niet past. Daarnaast was het doel om een **OLED display** toe te voegen voor emoties, wat niet voorzien is in het originele ontwerp.
 
 Oplossing: zelf een aangepaste mount ontwerpen en 3D-printen.
 
